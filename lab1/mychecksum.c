@@ -16,7 +16,7 @@ int main(int argc, char *argv[]) {
         return(-1);
     }
 
-    if ((fd2 = open(argv[2], O_RDWR)) < 0) {
+    if ((fd2 = open(argv[2], O_CREAT | O_WRONLY)) < 0) {
         printf("File %s couldn't be opened\n", argv[2]);
         return(-1);
     }
