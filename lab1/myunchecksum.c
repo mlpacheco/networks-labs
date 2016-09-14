@@ -48,8 +48,8 @@ int main(int argc, char *argv[]) {
     // compare checksum with file contents
     int match = checksum == sum;
     if (match) {
-        printf("match: 0x%llX 0x%llX\n", checksum, sum);
+        printf("match: 0x%lX" PRIu64 " 0x%lX" PRIu64 "\n", checksum, sum);
     } else {
-        printf("doesn't match: 0x%llX 0x%llX\n", checksum, sum);
+        printf("doesn't match: 0x%lX" PRIu64 " 0x%lX" PRIu64 "\n", checksum, sum);
     }
 }
