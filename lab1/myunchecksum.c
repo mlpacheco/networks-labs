@@ -13,12 +13,12 @@ int main(int argc, char *argv[]) {
 
     int fd1; int fd2;
 
-    if ((fd1 = open(argv[1], O_RDONLY)) < 0) {
+    if ((fd1 = open(argv[1], O_RDWR)) < 0) {
         printf("File %s couldn't be opened\n", argv[1]);
         return(-1);
     }
 
-    if ((fd2 = open(argv[2], O_CREAT | O_WRONLY)) < 0) {
+    if ((fd2 = open(argv[2], O_CREAT | O_RDWR)) < 0) {
         printf("File %s couldn't be opened\n", argv[2]);
         return(-1);
     }
