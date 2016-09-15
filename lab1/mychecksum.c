@@ -3,6 +3,9 @@
 #include <stdint.h>
 #include <inttypes.h>
 
+/**
+ * Maria Pacheco - pachecog@purdue.edu
+ */
 int main(int argc, char *argv[]) {
     if (argc != 3) {
         printf("Correct call: ./mychecksum file1 file2\n");

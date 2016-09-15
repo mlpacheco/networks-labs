@@ -4,6 +4,9 @@
 #include <inttypes.h>
 #include <sys/stat.h>
 
+/**
+ * Maria Pacheco - pachecog@purdue.edu
+ */
 int main(int argc, char *argv[]) {
 
     if (argc != 3) {
