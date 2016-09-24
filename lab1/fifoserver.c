@@ -46,6 +46,7 @@ int main(int argc, char *argv[]) {
     while(1) {
         // constantly read the fifo to find new requests
         int read_smth = read(fd_in, buf_in, 100);
+        buf_in[read_smth] = '\0';
         if (read_smth > 0) {   // if a request was received, fork and have the child execute
             k = fork();
             if (k == 0) {
