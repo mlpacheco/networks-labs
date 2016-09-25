@@ -18,7 +18,7 @@ void childsig_handler(int signum) {
 int main(int argc, char *argv[]) {
 
     if (argc != 3) {
-        printf("Run: %s [portnumber] [secretkey]", argv[0]);
+        printf("Run: %s [portnumber] [secretkey]\n", argv[0]);
         return -1;
     }
 
@@ -26,6 +26,8 @@ int main(int argc, char *argv[]) {
     struct sockaddr_in addr; //socket info about the client
     int sd, recv_len, port;
     char buffer[MAX_BUFF + 1];
+    char * secretkey;
+    char * cmd;
 
     port = atoi(argv[1]);
 
@@ -55,9 +57,22 @@ int main(int argc, char *argv[]) {
             buffer[read_smth] = '\0';
             k = fork();
             if (k == 0) {
-                dup2(conn, 1);
-                if (execlp(buffer, buffer, NULL) == -1) {
+                // break down the message into secretkey and command
+                secretkey = strtok(buffer, "$");
+                cmd = strtok(NULL, "$");
+
+                if (strcmp("ls", cmd) != 0 && strcmp("date", cmd) != 0 &&\
+                    strcmp("host", cmd) != 0 && strcmp("cal", cmd) != 0) {
+                    char * error = "command not accepted, use: [ls|date|host|cal]\n";
+                    write(conn, error, strlen(error));
+                    close(conn);
                     exit(-1);
+                } else {
+                    dup2(conn, 1);
+                    if (execlp(cmd, cmd, NULL) == -1) {
+                        close(conn);
+                        exit(-1);
+                    }
                 }
             }
         }

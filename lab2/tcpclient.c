@@ -6,12 +6,12 @@
 #include <string.h>
 
 #define MAX_BUFF 500
-#define CMD "ls"
+#define CMD "date"
 
 int main(int argc, char *argv[]) {
 
     if (argc != 4) {
-        printf("Run: %s [hostname] [portnumber] [secretkey]", argv[0]);
+        printf("Run: %s [hostname] [portnumber] [secretkey]\n", argv[0]);
         return -1;
     }
 
@@ -19,9 +19,13 @@ int main(int argc, char *argv[]) {
     int sd, n_recv, port;
     struct sockaddr_in server_addr;
     struct hostent *ipv4address;
+    char message[MAX_BUFF + 1];
 
     port = atoi(argv[2]);
     ipv4address = gethostbyname(argv[1]);
+
+    // create the message
+    snprintf(message, sizeof(message), "$%s$%s", argv[3], CMD);
 
     sd = socket(AF_INET, SOCK_STREAM, 0);
 
@@ -31,11 +35,11 @@ int main(int argc, char *argv[]) {
     server_addr.sin_port = htons(port);
 
     connect(sd, (struct sockaddr *)&server_addr, sizeof(server_addr));
-    int write_smth = write(sd, CMD, strlen(CMD));
+    int write_smth = write(sd, message, strlen(message));
     int read_smth = read(sd, buffer, MAX_BUFF);
     if (read_smth > 0) {
         buffer[read_smth] = '\0';
-        printf("%s\n", buffer);
+        printf("%s", buffer);
     }
     close(sd);
 
