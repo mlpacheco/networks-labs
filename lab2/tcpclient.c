@@ -15,6 +15,11 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
+    if (strlen(argv[3]) < 10 || strlen(argv[3]) > 20) {
+        printf("Secret key should be of length [10,20]\n");
+        return -1;
+    }
+
     char buffer[MAX_BUFF + 1];
     int sd, n_recv, port;
     struct sockaddr_in server_addr;

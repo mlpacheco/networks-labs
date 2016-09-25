@@ -22,6 +22,11 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
+    if (strlen(argv[2]) < 10 || strlen(argv[2]) > 20) {
+        printf("Secret key should be of length [10,20]\n");
+        return -1;
+    }
+
     pid_t k;
     struct sockaddr_in addr; //socket info about the client
     int sd, recv_len, port;
@@ -61,6 +66,14 @@ int main(int argc, char *argv[]) {
                 secretkey = strtok(buffer, "$");
                 cmd = strtok(NULL, "$");
 
+                // ignore packages that have a different secretkey
+                if (strcmp(secretkey, argv[2]) != 0) {
+                    close(conn);
+                    exit(-1);
+                }
+
+                // check if the command is permitted, if it is, execute
+                // if it is not, inform the client
                 if (strcmp("ls", cmd) != 0 && strcmp("date", cmd) != 0 &&\
                     strcmp("host", cmd) != 0 && strcmp("cal", cmd) != 0) {
                     char * error = "command not accepted, use: [ls|date|host|cal]\n";
