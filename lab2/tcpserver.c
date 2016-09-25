@@ -17,15 +17,22 @@ void childsig_handler(int signum) {
 
 int main(int argc, char *argv[]) {
 
+    if (argc != 3) {
+        printf("Run: %s [portnumber] [secretkey]", argv[0]);
+        return -1;
+    }
+
     pid_t k;
     struct sockaddr_in addr; //socket info about the client
-    int sd, recv_len;
+    int sd, recv_len, port;
     char buffer[MAX_BUFF + 1];
+
+    port = atoi(argv[1]);
 
     memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    addr.sin_port = htons(PORT);
+    addr.sin_port = htons(port);
 
     sd = socket(AF_INET, SOCK_STREAM, 0);
 
