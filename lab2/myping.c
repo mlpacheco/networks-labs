@@ -70,7 +70,7 @@ int main(int argc, char *argv[]) {
 
     bind(sd, (struct sockaddr *)&server_addr, sizeof(server_addr));
 
-    ualarm(250000, 0);
+    ualarm(255000, 0);
     gettimeofday(&start_time, 0);
 
     sendto(sd, message, strlen(message), 0, (struct sockaddr *) &server_addr, sizeof(server_addr));
@@ -85,7 +85,7 @@ int main(int argc, char *argv[]) {
         buffer[recv_len] = '\0';
         if (strcmp("terve", buffer) == 0) {
             elapsed_millis = end_millis - start_millis;
-            printf("ip_adress=%s port=%d time=%f ms\n", inet_ntoa(server_addr.sin_addr), ntohs(server_addr.sin_port), elapsed_millis);
+            printf("ip_address=%s port=%d time=%f ms\n", inet_ntoa(server_addr.sin_addr), ntohs(server_addr.sin_port), elapsed_millis);
         }
     }
 }
