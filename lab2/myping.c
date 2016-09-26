@@ -6,8 +6,16 @@
 #include <string.h>
 #include <arpa/inet.h>
 #include <sys/time.h>
+#include <signal.h>
 
 #define MAX_BUFF 1000
+
+volatile sig_atomic_t got_signal = 0;
+
+void signal_handler (int x) {
+    printf("no response from ping server\n");
+    exit(-1);
+}
 
 int main(int argc, char *argv[]) {
 
@@ -29,6 +37,11 @@ int main(int argc, char *argv[]) {
     char buffer[MAX_BUFF + 1];
     struct timeval start_time, end_time;
     double start_millis, end_millis, elapsed_millis;
+
+    // to handle signals
+    struct sigaction act;
+    act.sa_handler = signal_handler;
+    sigaction (SIGALRM, &act, 0);
 
     socklen_t addrsize = sizeof(server_addr);
     char * rndm_pool = "ABCDEFGHIJKLMNOPQRSTUVWXYZIabcdefghijklmnopqrstuvwxyz0123456789";
@@ -57,6 +70,7 @@ int main(int argc, char *argv[]) {
 
     bind(sd, (struct sockaddr *)&server_addr, sizeof(server_addr));
 
+    ualarm(250000, 0);
     gettimeofday(&start_time, 0);
 
     sendto(sd, message, strlen(message), 0, (struct sockaddr *) &server_addr, sizeof(server_addr));
@@ -74,7 +88,4 @@ int main(int argc, char *argv[]) {
             printf("ip_adress=%s port=%d time=%f ms\n", inet_ntoa(server_addr.sin_addr), ntohs(server_addr.sin_port), elapsed_millis);
         }
     }
-
-
-
 }

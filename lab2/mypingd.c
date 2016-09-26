@@ -20,7 +20,7 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
-    int sd, port, recv_len;
+    int sd, port, recv_len, msg_count;
     struct sockaddr_in addr;
     char buffer[MAX_BUFF + 1];
     char * secretkey;
@@ -37,8 +37,15 @@ int main(int argc, char *argv[]) {
 
     bind(sd, (struct sockaddr *)&addr, sizeof(addr));
 
+    msg_count = 1;
     while (1) {
         recv_len = recvfrom(sd, buffer, sizeof(buffer), 0, (struct sockaddr *) &addr, &addrsize);
+
+        // ignore every 4th client request
+        if (msg_count == 4) {
+            msg_count = 1;
+            continue;
+        }
 
         if (recv_len > 0) {
             buffer[recv_len] = '\0';
@@ -54,6 +61,8 @@ int main(int argc, char *argv[]) {
 
             sendto(sd, "terve", 5, 0, (struct sockaddr *) &addr, sizeof(addr));
         }
+
+        msg_count++;
 
     }
 
