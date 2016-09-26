@@ -10,11 +10,13 @@
 
 int main(int argc, char *argv[]) {
 
+    // check that we have all needed params
     if (argc != 3) {
         printf("Run: %s [port] [secretkey]\n", argv[0]);
         return -1;
     }
 
+    // check that secret key has the appropiate format
     if (strlen(argv[2]) < 10 || strlen(argv[2]) > 20) {
         printf("Secret key should be of length [10,20]\n");
         return -1;
@@ -28,17 +30,29 @@ int main(int argc, char *argv[]) {
     socklen_t addrsize = sizeof(addr);
     port = atoi(argv[1]);
 
+    // set server info
     memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = htonl(INADDR_ANY);
     addr.sin_port = htons(port);
 
-    sd = socket(AF_INET, SOCK_DGRAM, 0);
+    // create socket
+    if ((sd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
+        perror("socket error");
+        return -1;
+    }
 
-    bind(sd, (struct sockaddr *)&addr, sizeof(addr));
+    // bind server information to the socket
+    if ((bind(sd, (struct sockaddr *)&addr, sizeof(addr))) < 0) {
+        perror("bind error");
+        return -1;
+    }
 
+    // set a counter to identify every 4th request
     msg_count = 1;
+
     while (1) {
+        // receive client request
         recv_len = recvfrom(sd, buffer, sizeof(buffer), 0, (struct sockaddr *) &addr, &addrsize);
 
         // ignore every 4th client request
@@ -59,6 +73,7 @@ int main(int argc, char *argv[]) {
                 continue;
             }
 
+            // send message back to the client
             sendto(sd, "terve", 5, 0, (struct sockaddr *) &addr, sizeof(addr));
         }
 

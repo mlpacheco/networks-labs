@@ -9,6 +9,7 @@
 #define MAX_BUFF 500
 
 // signal handler to not block the server waiting
+// for child processes
 void childsig_handler(int signum) {
     int status;
     wait(&status);
@@ -16,34 +17,44 @@ void childsig_handler(int signum) {
 
 int main(int argc, char *argv[]) {
 
+    // check that we have all needed params
     if (argc != 3) {
         printf("Run: %s [portnumber] [secretkey]\n", argv[0]);
         return -1;
     }
 
+    // check that secret key has the appropriate format
     if (strlen(argv[2]) < 10 || strlen(argv[2]) > 20) {
         printf("Secret key should be of length [10,20]\n");
         return -1;
     }
 
     pid_t k;
-    struct sockaddr_in addr; //socket info about the client
-    int sd, recv_len, port;
+    struct sockaddr_in addr;
+    int sd, recv_len, port, conn, read_smth;
     char buffer[MAX_BUFF + 1];
     char * secretkey;
     char * cmd;
 
     port = atoi(argv[1]);
 
+    // set server info
     memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = htonl(INADDR_ANY);
     addr.sin_port = htons(port);
 
-    sd = socket(AF_INET, SOCK_STREAM, 0);
+    // create socket
+    if ((sd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+        perror("socket error");
+        return -1;
+    }
 
     // bind server information to the server socket
-    bind(sd, (struct sockaddr *)&addr, sizeof(addr));
+    if ((bind(sd, (struct sockaddr *)&addr, sizeof(addr))) < 0) {
+        perror("bind error");
+        return -1;
+    }
 
     // start listening
     listen(sd, 5);
@@ -55,11 +66,16 @@ int main(int argc, char *argv[]) {
     sigaction (SIGCHLD, &sigchld_action, NULL);
 
     while(1) {
-        int conn = accept(sd, 0, 0);
-        int read_smth = read(conn, buffer, MAX_BUFF);
+        // accept connections and read command
+        conn = accept(sd, 0, 0);
+        read_smth = read(conn, buffer, MAX_BUFF);
+
+        // if something is read, fork a process to handle the request
         if (read_smth > 0) {
             buffer[read_smth] = '\0';
             k = fork();
+
+            // child process code
             if (k == 0) {
                 // break down the message into secretkey and command
                 secretkey = strtok(buffer, "$");
@@ -71,8 +87,8 @@ int main(int argc, char *argv[]) {
                     exit(-1);
                 }
 
-                // check if the command is permitted, if it is, execute
-                // if it is not, inform the client
+                // check if the command is permitted, if so, execute & redirect output
+                // if not, inform the client
                 if (strcmp("ls", cmd) != 0 && strcmp("date", cmd) != 0 &&\
                     strcmp("host", cmd) != 0 && strcmp("cal", cmd) != 0) {
                     char * error = "command not accepted, use: [ls|date|host|cal]\n";
@@ -87,8 +103,11 @@ int main(int argc, char *argv[]) {
                     }
                 }
             }
+        } else {
+            // if nothing was read, close conn and go back to wait for new connections
+            close(conn);
         }
-        close(conn);
+
     }
 
 }
