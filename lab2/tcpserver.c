@@ -6,7 +6,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define PORT 10001
 #define MAX_BUFF 500
 
 // signal handler to not block the server waiting
