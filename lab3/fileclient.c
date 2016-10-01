@@ -27,7 +27,7 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
-    int sd, port, num_bytes, bytes_read;
+    int sd, port, num_bytes, bytes_read, write_smth;
     FILE *f_dwnld;
     FILE *f_config;
     struct sockaddr_in server_addr;
@@ -49,9 +49,6 @@ int main(int argc, char *argv[]) {
     bcopy ( ipv4address->h_addr, &(server_addr.sin_addr.s_addr), ipv4address->h_length);
     server_addr.sin_port = htons(port);
 
-    printf("host %s\n", argv[1]);
-    printf("port %d\n", port);
-
     // create socket
     if ((sd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
         perror("socket error");
@@ -67,6 +64,7 @@ int main(int argc, char *argv[]) {
 
     // create the message to be sent
     snprintf(message, sizeof(message), "$%s$%s", argv[3], argv[4]);
+    write_smth = write(sd, message, strlen(message));
 
     // read configuration file to know bytes to read
     f_config = fopen(argv[5], "r");

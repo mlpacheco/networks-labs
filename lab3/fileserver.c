@@ -28,7 +28,7 @@ int main(int argc, char *argv[]) {
     char buffer[MAX_BUFF + 1];
     char * secretkey;
     char * filename;
-    char * filepath;
+    char filepath[MAX_BUFF + 1];
 
     FILE *f_dwnld;
     FILE *f_config;
@@ -54,10 +54,9 @@ int main(int argc, char *argv[]) {
     }
 
     // start listening
-    printf("listening...\n");
     listen(sd, 5);
 
-    printf("accepting connections...\n");
+    // accept connections
     conn = accept(sd, 0, 0);
     read_smth = read(conn, buffer, MAX_BUFF);
 
@@ -70,8 +69,10 @@ int main(int argc, char *argv[]) {
 
         // ignore packages that have a different secretkey
         if (strcmp(secretkey, argv[2]) != 0) {
+            // should be an exit of child process after
+            perror("different key");
             close(conn);
-            exit(-1);
+            return -1;
         }
 
         // read configuration file to know bytes to write
@@ -80,7 +81,7 @@ int main(int argc, char *argv[]) {
         num_bytes = atoi(buffer);
 
         // open file to read content to send
-        f_dwnld = fopen(argv[4], "rb");
+        f_dwnld = fopen(filepath, "rb");
         if (f_dwnld != NULL) {
             while((bytes_read = fread(buffer, 1, num_bytes, f_dwnld)) > 0) {
                 buffer[bytes_read] = '\0';
