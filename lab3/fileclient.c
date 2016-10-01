@@ -36,7 +36,7 @@ int main(int argc, char *argv[]) {
     char message[MAX_BUFF + 1];
     char buffer[MAX_BUFF + 1];
     struct timeval start_time, end_time;
-    double start_millis, end_millis, elapsed_millis;
+    double start_sec, end_sec, elapsed_sec, reliable_throughput;
 
     // get port and host
     port = atoi(argv[2]);
@@ -88,14 +88,15 @@ int main(int argc, char *argv[]) {
     gettimeofday(&end_time, 0);
     close(sd);
 
-    // calculate milliseconds
-    start_millis = (start_time.tv_sec) * 1000.0 + (start_time.tv_usec) / 1000.0 ;
-    end_millis = (end_time.tv_sec) * 1000.0 + (end_time.tv_usec) / 1000.0 ;
-    elapsed_millis = end_millis - start_millis;
+    // calculate sececonds
+    start_sec = ((start_time.tv_sec) * 1000.0 + (start_time.tv_usec) / 1000.0)/1000.0 ;
+    end_sec = ((end_time.tv_sec) * 1000.0 + (end_time.tv_usec) / 1000.0)/1000.0 ;
+    elapsed_sec = end_sec - start_sec;
 
 
+    reliable_throughput = total_read / elapsed_sec;
 
-    printf("read=%d bytes time=%f ms\n", total_read, elapsed_millis);
+    printf("read = %d bytes\ntime = %f sec\nreliable_throughput = %f bps\n", total_read, elapsed_sec, reliable_throughput);
     fclose(f_dwnld);
 
 }
