@@ -35,7 +35,11 @@ int main(int argc, char *argv[]) {
 
     port = atoi(argv[1]);
 
-    printf("port %d\n", port);
+    // set server info
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    addr.sin_port = htons(port);
 
     // create socket
     if ((sd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
