@@ -86,6 +86,7 @@ int main(int argc, char *argv[]) {
         total_read += bytes_read;
     }
     gettimeofday(&end_time, 0);
+    close(sd);
 
     // calculate milliseconds
     start_millis = (start_time.tv_sec) * 1000.0 + (start_time.tv_usec) / 1000.0 ;
