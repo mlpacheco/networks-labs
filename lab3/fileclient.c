@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/time.h>
 
 #define MAX_BUFF 500
 
@@ -27,13 +28,15 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
-    int sd, port, num_bytes, bytes_read, write_smth;
+    int sd, port, num_bytes, bytes_read, write_smth, total_read;
     FILE *f_dwnld;
     FILE *f_config;
     struct sockaddr_in server_addr;
     struct hostent *ipv4address;
     char message[MAX_BUFF + 1];
     char buffer[MAX_BUFF + 1];
+    struct timeval start_time, end_time;
+    double start_millis, end_millis, elapsed_millis;
 
     // get port and host
     port = atoi(argv[2]);
@@ -75,11 +78,23 @@ int main(int argc, char *argv[]) {
     f_dwnld = fopen(argv[4], "ab");
 
     // write the message and read the file
+
+    gettimeofday(&start_time, 0);
     while ((bytes_read = read(sd, buffer, num_bytes)) > 0) {
         buffer[bytes_read] = '\0';
         fputs(buffer, f_dwnld);
+        total_read += bytes_read;
     }
+    gettimeofday(&end_time, 0);
 
+    // calculate milliseconds
+    start_millis = (start_time.tv_sec) * 1000.0 + (start_time.tv_usec) / 1000.0 ;
+    end_millis = (end_time.tv_sec) * 1000.0 + (end_time.tv_usec) / 1000.0 ;
+    elapsed_millis = end_millis - start_millis;
+
+
+
+    printf("read=%d bytes time=%f ms\n", total_read, elapsed_millis);
     fclose(f_dwnld);
 
 }

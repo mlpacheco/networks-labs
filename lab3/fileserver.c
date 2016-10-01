@@ -8,6 +8,13 @@
 
 #define MAX_BUFF 500
 
+// signal handler to not block the server waiting
+// for child processes
+void childsig_handler(int signum) {
+    int status;
+    wait(&status);
+}
+
 int main(int argc, char *argv[]) {
 
     // check that we have all needed params
@@ -56,43 +63,57 @@ int main(int argc, char *argv[]) {
     // start listening
     listen(sd, 5);
 
+    // stuff needed to handle the signals
+    struct sigaction sigchld_action;
+    memset (&sigchld_action, 0, sizeof (sigchld_action));
+    sigchld_action.sa_handler = &childsig_handler;
+    sigaction (SIGCHLD, &sigchld_action, NULL);
+
     // accept connections
-    conn = accept(sd, 0, 0);
-    read_smth = read(conn, buffer, MAX_BUFF);
+    while(1) {
+        conn = accept(sd, 0, 0);
+        k = fork();
 
-    if (read_smth > 0) {
-        buffer[read_smth] = '\0';
-        secretkey = strtok(buffer, "$");
-        filename = strtok(NULL, "$");
+        if (k == 0) {
+            read_smth = read(conn, buffer, MAX_BUFF);
+            if (read_smth > 0) {
+                buffer[read_smth] = '\0';
 
-        snprintf(filepath, sizeof(filepath), "%s%s", "./filedeposit/", filename);
+                secretkey = strtok(buffer, "$");
+                filename = strtok(NULL, "$");
 
-        // ignore packages that have a different secretkey
-        if (strcmp(secretkey, argv[2]) != 0) {
-            // should be an exit of child process after
-            perror("different key");
-            close(conn);
-            return -1;
-        }
+                snprintf(filepath, sizeof(filepath), "%s%s", "./filedeposit/", filename);
 
-        // read configuration file to know bytes to write
-        f_config = fopen(argv[3], "r");
-        fscanf(f_config, "%s", buffer);
-        num_bytes = atoi(buffer);
+                // ignore packages that have a different secretkey
+                if (strcmp(secretkey, argv[2]) != 0) {
+                    close(conn);
+                    exit(-1);
+                }
 
-        // open file to read content to send
-        f_dwnld = fopen(filepath, "rb");
-        if (f_dwnld != NULL) {
-            while((bytes_read = fread(buffer, 1, num_bytes, f_dwnld)) > 0) {
-                buffer[bytes_read] = '\0';
-                write(conn, buffer, bytes_read);
+                // read configuration file to know bytes to write
+                f_config = fopen(argv[3], "r");
+                fscanf(f_config, "%s", buffer);
+                num_bytes = atoi(buffer);
+
+                // open file to read content to send
+                f_dwnld = fopen(filepath, "rb");
+                if (f_dwnld != NULL) {
+                    while((bytes_read = fread(buffer, 1, num_bytes, f_dwnld)) > 0) {
+                        buffer[bytes_read] = '\0';
+                        write(conn, buffer, bytes_read);
+                    }
+                }
             }
+
+            close(conn);
+            exit(0);
+
+        } else {
+            close(conn);
         }
-        close(conn);
 
     }
 
     close(sd);
-
 
 }
