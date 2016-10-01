@@ -28,6 +28,7 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
+    // all variables that we will need
     int sd, port, num_bytes, bytes_read, write_smth, total_read;
     FILE *f_dwnld;
     FILE *f_config;
@@ -65,11 +66,11 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
-    // create the message to be sent
+    // create the message to be sent and send it to the server
     snprintf(message, sizeof(message), "$%s$%s", argv[3], argv[4]);
     write_smth = write(sd, message, strlen(message));
 
-    // read configuration file to know bytes to read
+    // read configuration file to know how many bytes to read at a time
     f_config = fopen(argv[5], "r");
     fscanf(f_config, "%s", buffer);
     num_bytes = atoi(buffer);
@@ -77,8 +78,7 @@ int main(int argc, char *argv[]) {
     // open file to write downloaded contents
     f_dwnld = fopen(argv[4], "ab");
 
-    // write the message and read the file
-
+    // read from the socket per specified bytes and write to local file
     gettimeofday(&start_time, 0);
     while ((bytes_read = read(sd, buffer, num_bytes)) > 0) {
         buffer[bytes_read] = '\0';
@@ -86,17 +86,20 @@ int main(int argc, char *argv[]) {
         total_read += bytes_read;
     }
     gettimeofday(&end_time, 0);
-    close(sd);
 
-    // calculate sececonds
+    // close connection and file
+    close(sd);
+    fclose(f_dwnld);
+
+    // calculate sececonds we took
     start_sec = ((start_time.tv_sec) * 1000.0 + (start_time.tv_usec) / 1000.0)/1000.0 ;
     end_sec = ((end_time.tv_sec) * 1000.0 + (end_time.tv_usec) / 1000.0)/1000.0 ;
     elapsed_sec = end_sec - start_sec;
 
-
+    // calculate reliable throughput = msg_len / RTT
     reliable_throughput = total_read / elapsed_sec;
 
+    // print results
     printf("read = %d bytes\ntime = %f sec\nreliable_throughput = %f bps\n", total_read, elapsed_sec, reliable_throughput);
-    fclose(f_dwnld);
 
 }

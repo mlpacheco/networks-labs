@@ -29,6 +29,7 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
+    // all the variables that we will need
     pid_t k;
     struct sockaddr_in addr;
     int sd, port, conn, read_smth, bytes_read, num_bytes;
@@ -36,7 +37,6 @@ int main(int argc, char *argv[]) {
     char * secretkey;
     char * filename;
     char filepath[MAX_BUFF + 1];
-
     FILE *f_dwnld;
     FILE *f_config;
 
@@ -69,19 +69,25 @@ int main(int argc, char *argv[]) {
     sigchld_action.sa_handler = &childsig_handler;
     sigaction (SIGCHLD, &sigchld_action, NULL);
 
-    // accept connections
+    // accept connections from clients constantly
     while(1) {
         conn = accept(sd, 0, 0);
+
+        // fork a child to manage request
         k = fork();
 
+        // child process code
         if (k == 0) {
+
+            // read message
             read_smth = read(conn, buffer, MAX_BUFF);
             if (read_smth > 0) {
                 buffer[read_smth] = '\0';
 
+                // parse message
                 secretkey = strtok(buffer, "$");
                 filename = strtok(NULL, "$");
-
+                // construct filepath
                 snprintf(filepath, sizeof(filepath), "%s%s", "./filedeposit/", filename);
 
                 // ignore packages that have a different secretkey
@@ -95,8 +101,10 @@ int main(int argc, char *argv[]) {
                 fscanf(f_config, "%s", buffer);
                 num_bytes = atoi(buffer);
 
-                // open file to read content to send
+                // open file to read content to upload to client
                 f_dwnld = fopen(filepath, "rb");
+
+                // if the file exists, write to client per bytes specified
                 if (f_dwnld != NULL) {
                     while((bytes_read = fread(buffer, 1, num_bytes, f_dwnld)) > 0) {
                         buffer[bytes_read] = '\0';
@@ -105,10 +113,12 @@ int main(int argc, char *argv[]) {
                 }
             }
 
+            // close connection and finish child process
             close(conn);
             exit(0);
 
         } else {
+            // parent should close the connection
             close(conn);
         }
 
