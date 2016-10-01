@@ -1,3 +1,87 @@
+#include <sys/socket.h>
+#include <sys/socket.h>
+#include <netdb.h>
+#include <unistd.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <arpa/inet.h>
+#include <sys/time.h>
+#include <signal.h>
+
 int main(int argc, char *argv[]) {
 
+    // check that we have all needed params
+    if (argc != 6) {
+        printf("Run: %s [IPaddress] [port] [payload_size] [packet_count] [packet_spacing]\n", argv[0]);
+        return -1;
+    }
+
+    int port, sd, payload_size, n_packets, len, bytes_sent;
+    struct hostent *ipv4address;
+    struct in_addr host_addr;
+    struct sockaddr_in server_addr;
+    struct timeval start_time, end_time;
+    double interval, start_sec, end_sec, elapsed_sec;
+
+    port = atoi(argv[2]);
+    payload_size = atoi(argv[3]);
+    n_packets = atoi(argv[4]);
+    interval = atof(argv[5]);
+
+    char msg[payload_size + 1];
+
+    inet_pton(AF_INET, argv[1], &host_addr);
+    ipv4address = gethostbyaddr(&host_addr, sizeof host_addr, AF_INET);
+    if (!ipv4address) {
+        perror("unknown address");
+        return -1;
+    }
+
+    // create socket
+    if ((sd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
+        perror("socket error");
+        return -1;
+    }
+
+    // set server info
+    memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    bcopy(ipv4address->h_addr, &(server_addr.sin_addr.s_addr), ipv4address->h_length);
+    server_addr.sin_port = htons(port);
+
+    while((strlen(msg)) < payload_size) {
+        len = strlen(msg);
+        msg[len] = 'P';
+        msg[len + 1] = '\0';
+    }
+
+    bytes_sent = 0;
+    gettimeofday(&start_time, 0);
+    for (int i = 0; i < n_packets; i++) {
+        sendto(sd, msg, strlen(msg), 0, (struct sockaddr *) &server_addr, sizeof(server_addr));
+        // need to add UDP header and Ethernet header/trailer overhead to sent bytes
+        bytes_sent += strlen(msg);
+        usleep(interval);
+    }
+    gettimeofday(&end_time, 0);
+
+    start_sec = ((start_time.tv_sec) * 1000.0 + (start_time.tv_usec) / 1000.0)/1000.0 ;
+    end_sec = ((end_time.tv_sec) * 1000.0 + (end_time.tv_usec) / 1000.0)/1000.0 ;
+    elapsed_sec = end_sec - start_sec;
+
+    printf("received=%d bytes | time=%f sec | bit_rate=%f bps\n",
+            bytes_sent, elapsed_sec, (1.0 * bytes_sent)/elapsed_sec);
+    printf("received=%d packets | time=%f sec | bit_rate=%f pps\n",
+            n_packets, elapsed_sec, (1.0 * n_packets)/elapsed_sec);
+
+    // send 3 packets each of payload size 3 bytes back-to-back
+    // to signal end of transmission
+    for (int i = 0; i < 3; i++) {
+        sendto(sd, msg, 3,  0, (struct sockaddr *) &server_addr, sizeof(server_addr));
+    }
+
+    close(sd);
+
 }
+
