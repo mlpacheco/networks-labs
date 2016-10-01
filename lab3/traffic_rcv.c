@@ -16,6 +16,7 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
+    // variables that we will need
     int sd, port, recv_len, n_packets, n_bytes, first_pkg;
     struct sockaddr_in addr;
     char buffer[MAX_BUFF + 1];
@@ -49,16 +50,16 @@ int main(int argc, char *argv[]) {
     n_packets = 0;
     // need to add UDP header and Ethernet header/trailer overhead to received bytes
     while (1) {
-
+        // receive a package from the sender
         recv_len = recvfrom(sd, buffer, sizeof(buffer), 0, (struct sockaddr *) &addr, &addrsize);
-        buffer[recv_len] = '\0';
+
         // take the time after receiving first packet
         if (first_pkg) {
             gettimeofday(&start_time, 0);
             first_pkg = 0;
         }
 
-        // server has signaled the end of transmission
+        // server has signaled the end of transmission, capture time and break
         if (recv_len == 3) {
             gettimeofday(&end_time, 0);
             close(sd);
@@ -71,10 +72,12 @@ int main(int argc, char *argv[]) {
 
     }
 
+    // estimate duration
     start_sec = ((start_time.tv_sec) * 1000.0 + (start_time.tv_usec) / 1000.0)/1000.0 ;
     end_sec = ((end_time.tv_sec) * 1000.0 + (end_time.tv_usec) / 1000.0)/1000.0 ;
     elapsed_sec = end_sec - start_sec;
 
+    // print outputs
     printf("received=%d bytes | time=%f sec | bit_rate=%f bps\n",
             n_bytes, elapsed_sec, (1.0 * n_bytes)/elapsed_sec);
     printf("received=%d packets | time=%f sec | bit_rate=%f pps\n",

@@ -17,6 +17,7 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
+    // variables needed
     int port, sd, payload_size, n_packets, len, bytes_sent;
     struct hostent *ipv4address;
     struct in_addr host_addr;
@@ -24,13 +25,16 @@ int main(int argc, char *argv[]) {
     struct timeval start_time, end_time;
     double interval, start_sec, end_sec, elapsed_sec;
 
+    // parse input to appropiate types
     port = atoi(argv[2]);
     payload_size = atoi(argv[3]);
     n_packets = atoi(argv[4]);
     interval = atof(argv[5]);
 
+    // the message of the size of the payload
     char msg[payload_size + 1];
 
+    // resolve IP address
     inet_pton(AF_INET, argv[1], &host_addr);
     ipv4address = gethostbyaddr(&host_addr, sizeof host_addr, AF_INET);
     if (!ipv4address) {
@@ -50,12 +54,14 @@ int main(int argc, char *argv[]) {
     bcopy(ipv4address->h_addr, &(server_addr.sin_addr.s_addr), ipv4address->h_length);
     server_addr.sin_port = htons(port);
 
+    // create payload
     while((strlen(msg)) < payload_size) {
         len = strlen(msg);
         msg[len] = 'P';
         msg[len + 1] = '\0';
     }
 
+    // send the specified number of packets with specified interval
     bytes_sent = 0;
     gettimeofday(&start_time, 0);
     for (int i = 0; i < n_packets; i++) {
@@ -66,10 +72,12 @@ int main(int argc, char *argv[]) {
     }
     gettimeofday(&end_time, 0);
 
+    // calculate time spent
     start_sec = ((start_time.tv_sec) * 1000.0 + (start_time.tv_usec) / 1000.0)/1000.0 ;
     end_sec = ((end_time.tv_sec) * 1000.0 + (end_time.tv_usec) / 1000.0)/1000.0 ;
     elapsed_sec = end_sec - start_sec;
 
+    // output info
     printf("received=%d bytes | time=%f sec | bit_rate=%f bps\n",
             bytes_sent, elapsed_sec, (1.0 * bytes_sent)/elapsed_sec);
     printf("received=%d packets | time=%f sec | bit_rate=%f pps\n",
