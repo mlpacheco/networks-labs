@@ -64,7 +64,8 @@ int main(int argc, char *argv[]) {
     // send the specified number of packets with specified interval
     bytes_sent = 0;
     gettimeofday(&start_time, 0);
-    for (int i = 0; i < n_packets; i++) {
+    int i;
+    for (i = 0; i < n_packets; i++) {
         sendto(sd, msg, strlen(msg), 0, (struct sockaddr *) &server_addr, sizeof(server_addr));
         // need to add UDP header and Ethernet header/trailer overhead to sent bytes
         bytes_sent += strlen(msg);
@@ -85,7 +86,7 @@ int main(int argc, char *argv[]) {
 
     // send 3 packets each of payload size 3 bytes back-to-back
     // to signal end of transmission
-    for (int i = 0; i < 3; i++) {
+    for (i = 0; i < 3; i++) {
         sendto(sd, msg, 3,  0, (struct sockaddr *) &server_addr, sizeof(server_addr));
     }
 
