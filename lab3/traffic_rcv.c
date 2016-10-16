@@ -8,6 +8,10 @@
 
 #define MAX_BUFF 10000
 
+#define UDP_HEADER 8
+#define ETHERNET_HEADER 22
+#define ETHERNET_TRAILER 4
+
 int main(int argc, char *argv[]) {
 
     // check that we have all needed params
@@ -76,6 +80,9 @@ int main(int argc, char *argv[]) {
     start_sec = ((start_time.tv_sec) * 1000.0 + (start_time.tv_usec) / 1000.0)/1000.0 ;
     end_sec = ((end_time.tv_sec) * 1000.0 + (end_time.tv_usec) / 1000.0)/1000.0 ;
     elapsed_sec = end_sec - start_sec;
+
+    // add header/trailer overhead
+    n_bytes += UDP_HEADER + ETHERNET_HEADER + ETHERNET_TRAILER;
 
     // print outputs
     printf("received=%d bytes | time=%f sec | bit_rate=%f bps\n",

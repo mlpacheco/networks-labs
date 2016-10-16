@@ -9,6 +9,10 @@
 #include <sys/time.h>
 #include <signal.h>
 
+#define ETHERNET_HEADER 22
+#define ETHERNET_TRAILER 4
+#define UPD_HEADER 8
+
 int main(int argc, char *argv[]) {
 
     // check that we have all needed params
@@ -78,10 +82,13 @@ int main(int argc, char *argv[]) {
     end_sec = ((end_time.tv_sec) * 1000.0 + (end_time.tv_usec) / 1000.0)/1000.0 ;
     elapsed_sec = end_sec - start_sec;
 
+    // add header/trailer overhead
+    bytes_sent += UPD_HEADER + ETHERNET_HEADER + ETHERNET_TRAILER;
+
     // output info
-    printf("received=%d bytes | time=%f sec | bit_rate=%f bps\n",
+    printf("sent=%d bytes | time=%f sec | bit_rate=%f bps\n",
             bytes_sent, elapsed_sec, (1.0 * bytes_sent)/elapsed_sec);
-    printf("received=%d packets | time=%f sec | bit_rate=%f pps\n",
+    printf("sent=%d packets | time=%f sec | bit_rate=%f pps\n",
             n_packets, elapsed_sec, (1.0 * n_packets)/elapsed_sec);
 
     // send 3 packets each of payload size 3 bytes back-to-back
