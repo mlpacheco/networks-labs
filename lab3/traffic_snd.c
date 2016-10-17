@@ -47,7 +47,7 @@ int main(int argc, char *argv[]) {
     }
 
     // create socket
-    if ((sd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
+    if ((sd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0) {
         perror("socket error");
         return -1;
     }
