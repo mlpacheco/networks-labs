@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define MAX_BUFF 500
+#define MAX_BUFF 10000
 
 // signal handler to not block the server waiting
 // for child processes

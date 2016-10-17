@@ -6,7 +6,7 @@
 #include <string.h>
 #include <sys/time.h>
 
-#define MAX_BUFF 500
+#define MAX_BUFF 10000
 
 int main(int argc, char *argv[]) {
 
@@ -96,10 +96,13 @@ int main(int argc, char *argv[]) {
     end_sec = ((end_time.tv_sec) * 1000.0 + (end_time.tv_usec) / 1000.0)/1000.0 ;
     elapsed_sec = end_sec - start_sec;
 
+    // trasnform bytes to Megabits
+    double total_Mb = total_read / 131072;
+
     // calculate reliable throughput = msg_len / RTT
-    reliable_throughput = total_read / elapsed_sec;
+    reliable_throughput = total_Mb / elapsed_sec;
 
     // print results
-    printf("read = %d bytes\ntime = %f sec\nreliable_throughput = %f bps\n", total_read, elapsed_sec, reliable_throughput);
+    printf("read = %d bytes\ntime = %f sec\nreliable_throughput = %f Mbps\n", total_read, elapsed_sec, reliable_throughput);
 
 }

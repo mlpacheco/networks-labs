@@ -8,6 +8,10 @@
 
 #define MAX_BUFF 10000
 
+#define UDP_HEADER 8
+#define ETHERNET_HEADER 22
+#define ETHERNET_TRAILER 4
+
 int main(int argc, char *argv[]) {
 
     // check that we have all needed params
@@ -65,8 +69,9 @@ int main(int argc, char *argv[]) {
             close(sd);
             break;
         } else {
-            // need to add UDP header and Ethernet header/trailer overhead to received bytes
             n_bytes += recv_len;
+            // add header/trailer overhead
+            n_bytes += UDP_HEADER + ETHERNET_HEADER + ETHERNET_TRAILER;
             n_packets += 1;
         }
 
@@ -77,9 +82,11 @@ int main(int argc, char *argv[]) {
     end_sec = ((end_time.tv_sec) * 1000.0 + (end_time.tv_usec) / 1000.0)/1000.0 ;
     elapsed_sec = end_sec - start_sec;
 
+    double recv_Mb = n_bytes / 131072;
+
     // print outputs
-    printf("received=%d bytes | time=%f sec | bit_rate=%f bps\n",
-            n_bytes, elapsed_sec, (1.0 * n_bytes)/elapsed_sec);
+    printf("received=%d bytes (with overhead) | time=%f sec | bit_rate=%f Mbps\n",
+            n_bytes, elapsed_sec, (1.0 * recv_Mb)/elapsed_sec);
     printf("received=%d packets | time=%f sec | bit_rate=%f pps\n",
             n_packets, elapsed_sec, (1.0 * n_packets)/elapsed_sec);
 
