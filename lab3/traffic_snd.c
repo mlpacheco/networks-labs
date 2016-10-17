@@ -71,8 +71,12 @@ int main(int argc, char *argv[]) {
     int i;
     for (i = 0; i < n_packets; i++) {
         sendto(sd, msg, strlen(msg), 0, (struct sockaddr *) &server_addr, sizeof(server_addr));
-        // need to add UDP header and Ethernet header/trailer overhead to sent bytes
+        // add payload
         bytes_sent += strlen(msg);
+        // add header/trailer overhead
+        bytes_sent += UPD_HEADER + ETHERNET_HEADER + ETHERNET_TRAILER;
+
+        // wait the specified interval
         usleep(interval);
     }
     gettimeofday(&end_time, 0);
@@ -82,12 +86,13 @@ int main(int argc, char *argv[]) {
     end_sec = ((end_time.tv_sec) * 1000.0 + (end_time.tv_usec) / 1000.0)/1000.0 ;
     elapsed_sec = end_sec - start_sec;
 
-    // add header/trailer overhead
-    bytes_sent += UPD_HEADER + ETHERNET_HEADER + ETHERNET_TRAILER;
+    // convert bytes to Megabits to report bit rate
+    double sent_Mb = bytes_sent / 131072;
+
 
     // output info
-    printf("sent=%d bytes | time=%f sec | bit_rate=%f bps\n",
-            bytes_sent, elapsed_sec, (1.0 * bytes_sent)/elapsed_sec);
+    printf("sent=%d bytes (with overhead) | time=%f sec | bit_rate=%f Mbps\n",
+            bytes_sent, elapsed_sec, (1.0 * sent_Mb)/elapsed_sec);
     printf("sent=%d packets | time=%f sec | bit_rate=%f pps\n",
             n_packets, elapsed_sec, (1.0 * n_packets)/elapsed_sec);
 
