@@ -8,12 +8,12 @@
 
 #define MAX_BUFF 1000
 
-volatile sig_atomic_t keep_going = 1;
+volatile sig_atomic_t keep_prompting = 0;
 
 // signal handler to terminate client if no response
 void catch_alarm (int sig) {
     printf("No response\n");
-    keep_going = 0;
+    keep_prompting = 1;
 }
 
 int main(int argc, char *argv[]) {
@@ -61,7 +61,10 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
-    signal(SIGALRM, catch_alarm);
+    // stuff to handle signals
+    struct sigaction act;
+    act.sa_handler = catch_alarm;
+    sigaction (SIGALRM, &act, 0);
 
     while (1) {
         // print prompt
@@ -87,15 +90,13 @@ int main(int argc, char *argv[]) {
         addr_snd.sin_port = htons(port_snd);
 
         // send message
-        printf("sending message\n");
         ualarm(7000000, 0);
         sendto(sd_snd, "wannatalk", 9, 0, (struct sockaddr *) &addr_snd, sizeof(addr_snd));
-        printf("before recv\n");
-
         len_rcv = recvfrom(sd_rcv, buffer, sizeof(buffer), 0, (struct sockaddr *) &addr_rcv, &addrsize);
 
-        printf("after recv\n");
-
+        // break out of the loop
+        if (!keep_prompting || len_rcv > 0)
+            break;
     }
 
 }
