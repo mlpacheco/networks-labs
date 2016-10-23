@@ -5,6 +5,7 @@
 #include <string.h>
 #include <arpa/inet.h>
 #include <sys/time.h>
+#include <signal.h>
 
 #define MAX_BUFF 1000
 
@@ -25,7 +26,7 @@ int main(int argc, char *argv[]) {
     }
 
     // variables needed
-    int port_rcv, port_snd, sd_rcv, sd_snd, len_rcv;
+    int port_rcv, port_snd, sd_rcv, sd_snd, len_rcv, chat;
     struct sockaddr_in addr_rcv;
     struct sockaddr_in addr_snd;
     char buffer[MAX_BUFF + 1];
@@ -62,25 +63,32 @@ int main(int argc, char *argv[]) {
     }
 
     // stuff to handle signals
-    struct sigaction act;
-    act.sa_handler = catch_alarm;
-    sigaction (SIGALRM, &act, 0);
+    struct sigaction sa;
+    memset(&sa, 0, sizeof sa);
+    sa.sa_handler = catch_alarm;
+    sigaction (SIGALRM, &sa, 0);
 
-    while (1) {
+    chat = 0;
+    while (!chat) {
         // print prompt
         printf("? ");
         fgets(buffer, sizeof buffer, stdin);
         //printf("%s", buffer);
 
-        // parse input hostname and port
+        // parse input hostname (or q)
         inp_hostname = strtok(buffer, " ");
+        if (strcmp(inp_hostname, "q\n") == 0)
+            break;
+        else
+            ipv4address = gethostbyname(inp_hostname);
+
+        if (!ipv4address) {
+            printf("Unknown host\n");
+            continue;
+        }
+
+        // parse port
         inp_port = strtok(NULL, "\n");
-
-        //printf("hostname: %s\n", inp_hostname);
-        //printf("port: %s\n", inp_port);
-
-        // resolve IP address and port
-        ipv4address = gethostbyname(inp_hostname); // if host unkown print msg
         port_snd = atoi(inp_port);
 
         // set info to communicate with specified host and port
@@ -94,9 +102,12 @@ int main(int argc, char *argv[]) {
         sendto(sd_snd, "wannatalk", 9, 0, (struct sockaddr *) &addr_snd, sizeof(addr_snd));
         len_rcv = recvfrom(sd_rcv, buffer, sizeof(buffer), 0, (struct sockaddr *) &addr_rcv, &addrsize);
 
-        // break out of the loop
-        if (!keep_prompting || len_rcv > 0)
-            break;
+        // break out of the loop if user wants to chat
+        if (len_rcv > 0) {
+            buffer[len_rcv] = '\0';
+            if (strcmp(buffer, "OK") == 0)
+                chat = 1;
+        }
     }
 
 }
