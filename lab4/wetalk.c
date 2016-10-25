@@ -10,42 +10,50 @@
 
 #define MAX_BUFF 1000
 
-volatile sig_atomic_t keep_prompting = 0;
 struct sockaddr_in addr_rcv;
 struct sockaddr_in addr_snd;
 int sd_snd, sd_rcv;
 int chatting = 0;
 int quit = 0;
 int was_asked = 0;
+int send_on_rcv = 0;
 
 
 // signal handler to terminate client if no response
-void catch_alarm (int sig) {
+void alarm_handl(int sig) {
     printf("No response\n");
-    keep_prompting = 1;
 }
 
-void *listen_connections(void *threadid) {
+// signal handler for SIGPOLL
+void sigpoll_handl(int sig) {
     char buffer[MAX_BUFF + 1];
-    socklen_t addrsize = sizeof(addr_rcv);
+    int len_rcv = 0;
+    socklen_t addrsize_rcv = sizeof(addr_rcv);
 
-    while(1) {
-        if (chatting)
-            pthread_exit(NULL);
-        long tid;
-        tid = (long) threadid;
-        int len_rcv = recvfrom(sd_rcv, buffer, sizeof(buffer), 0, (struct sockaddr *) &addr_rcv, &addrsize);
-        if (len_rcv > 0) {
-            buffer[len_rcv] = '\0';
-            if (strcmp(buffer, "wannatalk") == 0) {
-                printf("\n| chat request from %s %d\n", inet_ntoa(addr_rcv.sin_addr), ntohs(addr_rcv.sin_port));
-                was_asked = 1;
-            }
+    len_rcv = recvfrom(sd_rcv, buffer, sizeof(buffer), 0, (struct sockaddr *) &addr_rcv, &addrsize_rcv);
+
+    if (len_rcv > 0) {
+        buffer[len_rcv] = '\0';
+        // talk request
+        if (strcmp(buffer, "wannatalk") == 0) {
+            printf("\n| chat request from %s %d\n", inet_ntoa(addr_rcv.sin_addr), ntohs(addr_rcv.sin_port));
+            was_asked = 1;
+        }
+        // chat message
+        else if (buffer[0] == 'D' && was_asked) {
+            char sub_buff[strlen(buffer) - 1];
+            memcpy(sub_buff, &buffer[1], strlen(buffer) - 1);
+            printf("\n| %s\n", sub_buff);
+        }
+        // exit message
+        else if (buffer[0] == 'e' && strlen(buffer) == 1 && was_asked) {
+            printf("\n| chat terminated\n");
+            quit = 1;
         }
     }
-
-    pthread_exit(NULL);
 }
+
+
 
 int main(int argc, char *argv[]) {
 
@@ -90,18 +98,21 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
-    // stuff to handle signals
-    struct sigaction sa;
-    memset(&sa, 0, sizeof sa);
-    sa.sa_handler = catch_alarm;
-    sigaction (SIGALRM, &sa, 0);
+    // stuff to handle alarm signals
+    struct sigaction sa_alarm;
+    memset(&sa_alarm, 0, sizeof sa_alarm);
+    sa_alarm.sa_handler = alarm_handl;
+    sigaction (SIGALRM, &sa_alarm, 0);
 
-    pthread_t thread;
-    pthread_create(&thread, NULL, listen_connections, 0);
+    // struff to handle sigpoll signals
+    struct sigaction sa_sigpoll;
+    memset(&sa_sigpoll, 0, sizeof sa_sigpoll);
+    sa_sigpoll.sa_handler = sigpoll_handl;
+    sigaction (SIGPOLL, &sa_sigpoll, 0);
 
     while (!chatting) {
         // print prompt
-        printf("? ");
+        fputs("? ", stdout);
         fgets(buffer, sizeof buffer, stdin);
         //printf("buffer %s buffer_size %lu\n", buffer, strlen(buffer));
         if (strlen(buffer) == 2) {
@@ -150,10 +161,8 @@ int main(int argc, char *argv[]) {
                 buffer[len_rcv] = '\0';
                 if (strcmp(buffer, "OK") == 0) {
                     chatting = 1;
-                    continue;
                 } else if (strcmp(buffer, "KO") == 0) {
                     printf("| doesn't want to chat\n");
-                    continue;
                 }
             }
 
@@ -163,10 +172,27 @@ int main(int argc, char *argv[]) {
 
     if (quit) {
         printf("Goodbye!\n");
+        exit(0);
     }
 
     if (chatting) {
-        printf("we are chatting!\n");
+        printf("Chat begins");
+        exit(0);
     }
+
+    /*
+    while(chatting) {
+        fputs("> ", stdout);
+        fgets(buffer, sizeof buffer, stdin);
+        buffer[strlen(buffer) - 1] = '\0';
+
+        if (send_on_rcv) {
+            sendto(sd_rcv, buffer, strlen(buffer), 0, (struct sockaddr *) &addr_rcv, sizeof(addr_rcv));
+        } else {
+            sendto(sd_snd, buffer, strlen(buffer), 0, (struct sockaddr *) &addr_snd, sizeof(addr_snd));
+        }
+    }
+    */
+
 
 }
