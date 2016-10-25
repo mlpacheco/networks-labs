@@ -6,18 +6,13 @@
 #include <arpa/inet.h>
 #include <sys/time.h>
 #include <signal.h>
-#include <pthread.h>
+#include <fcntl.h>
 
 #define MAX_BUFF 1000
 
-struct sockaddr_in addr_rcv;
-struct sockaddr_in addr_snd;
-int sd_snd, sd_rcv;
-int chatting = 0;
-int quit = 0;
-int was_asked = 0;
-int send_on_rcv = 0;
-
+int socket_listen, socket_send;
+volatile sig_atomic_t chatting = 0;
+volatile sig_atomic_t quit = 0;
 
 // signal handler to terminate client if no response
 void alarm_handl(int sig) {
@@ -25,35 +20,32 @@ void alarm_handl(int sig) {
 }
 
 // signal handler for SIGPOLL
-void sigpoll_handl(int sig) {
-    char buffer[MAX_BUFF + 1];
-    int len_rcv = 0;
-    socklen_t addrsize_rcv = sizeof(addr_rcv);
+void sigpoll_handl_connections(int sig) {
+    if (!chatting) {
+        int num_bytes;
+        struct sockaddr_in their_addr;
+        char buffer[MAX_BUFF];
+        int addr_len = sizeof(their_addr);
 
-    len_rcv = recvfrom(sd_rcv, buffer, sizeof(buffer), 0, (struct sockaddr *) &addr_rcv, &addrsize_rcv);
-
-    if (len_rcv > 0) {
-        buffer[len_rcv] = '\0';
-        // talk request
-        if (strcmp(buffer, "wannatalk") == 0) {
-            printf("\n| chat request from %s %d\n", inet_ntoa(addr_rcv.sin_addr), ntohs(addr_rcv.sin_port));
-            was_asked = 1;
-        }
-        // chat message
-        else if (buffer[0] == 'D' && was_asked) {
-            char sub_buff[strlen(buffer) - 1];
-            memcpy(sub_buff, &buffer[1], strlen(buffer) - 1);
-            printf("\n| %s\n", sub_buff);
-        }
-        // exit message
-        else if (buffer[0] == 'e' && strlen(buffer) == 1 && was_asked) {
-            printf("\n| chat terminated\n");
-            quit = 1;
+        num_bytes = recvfrom(socket_listen, buffer, sizeof buffer, 0, (struct sockaddr *)&their_addr, &addr_len);
+        if (num_bytes > 0) {
+            buffer[num_bytes] = '\0';
+            if (strcmp(buffer, "wannatalk") == 0) {
+                printf("\n| chat request from %s %d\n", inet_ntoa(their_addr.sin_addr), ntohs(their_addr.sin_port));
+                fputs("? ", stdout);
+                fgets(buffer, sizeof buffer, stdin);
+                if (strcmp(buffer, "c\n") == 0) {
+                    sendto(socket_listen, "OK", 2, 0, (struct sockaddr *)&their_addr, addr_len);
+                    chatting = 1;
+                } else if (strcmp(buffer, "n\n") == 0) {
+                    sendto(socket_listen, "KO", 2, 0, (struct sockaddr *)&their_addr, addr_len);
+                } else if (strcmp(buffer, "q\n") == 0) {
+                    exit(0);
+                }
+            }
         }
     }
 }
-
-
 
 int main(int argc, char *argv[]) {
 
@@ -64,37 +56,48 @@ int main(int argc, char *argv[]) {
     }
 
     // variables needed
-    int port_rcv, port_snd, len_rcv;
+    int port_listen, port_send, num_bytes;
     char buffer[MAX_BUFF + 1];
     char * inp_hostname;
     char * inp_port;
     struct hostent *ipv4address;
     struct in_addr host_addr;
+    struct sockaddr_in addr_listen;
+    struct sockaddr_in addr_send;
+    //int quit = 0;
+    //int was_asked = 0;
+    //int send_on_listen = 0;
 
     // parse input to appropriate types
-    port_rcv = atoi(argv[1]);
-    socklen_t addrsize = sizeof(addr_rcv);
+    port_listen = atoi(argv[1]);
+    socklen_t addrsize = sizeof(addr_listen);
 
     // set port info
-    memset(&addr_rcv, 0, sizeof(addr_rcv));
-    addr_rcv.sin_family = AF_INET;
-    addr_rcv.sin_addr.s_addr = htonl(INADDR_ANY);
-    addr_rcv.sin_port = htons(port_rcv);
+    memset(&addr_listen, 0, sizeof(addr_listen));
+    addr_listen.sin_family = AF_INET;
+    addr_listen.sin_addr.s_addr = htonl(INADDR_ANY);
+    addr_listen.sin_port = htons(port_listen);
 
     // create sockets
-    if ((sd_rcv = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0) {
+    if ((socket_listen = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
         perror("socket error");
         return -1;
     }
 
-    if ((sd_snd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0) {
+    if ((socket_send = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
         perror("socket error");
         return -1;
     }
 
     // bind listening socket to command line port
-    if ((bind(sd_rcv, (struct sockaddr *)&addr_rcv, sizeof(addr_rcv))) < 0) {
+    if (bind(socket_listen, (struct sockaddr *)&addr_listen, sizeof addr_listen) < 0) {
         perror("bind error");
+        return -1;
+    }
+
+    int length = sizeof(addr_listen);
+    if (getsockname(socket_listen, (struct sockaddr *)&addr_listen, &length) < 0) {
+        perror("getting socket name");
         return -1;
     }
 
@@ -104,95 +107,54 @@ int main(int argc, char *argv[]) {
     sa_alarm.sa_handler = alarm_handl;
     sigaction (SIGALRM, &sa_alarm, 0);
 
-    // struff to handle sigpoll signals
+    // stuff to handle sigpoll signals on server socket
     struct sigaction sa_sigpoll;
     memset(&sa_sigpoll, 0, sizeof sa_sigpoll);
-    sa_sigpoll.sa_handler = sigpoll_handl;
+    sa_sigpoll.sa_handler = sigpoll_handl_connections;
     sigaction (SIGPOLL, &sa_sigpoll, 0);
+    fcntl(socket_listen, F_SETOWN, getpid());
+    fcntl(socket_listen, F_SETFL, FASYNC);
 
     while (!chatting) {
-        // print prompt
         fputs("? ", stdout);
         fgets(buffer, sizeof buffer, stdin);
         //printf("buffer %s buffer_size %lu\n", buffer, strlen(buffer));
-        if (strlen(buffer) == 2) {
-            if (strcmp(buffer, "q\n") == 0) {
-                quit = 1;
-                break;
-            } else if (strcmp(buffer, "c\n") == 0 && was_asked) {
-                sendto(sd_rcv, "OK", 2, 0, (struct sockaddr *) &addr_rcv, sizeof(addr_rcv));
+
+        if (strcmp(buffer, "q\n") == 0)
+            exit(0);
+
+        // parse hostname and port
+        inp_hostname = strtok(buffer, " ");
+        ipv4address = gethostbyname(inp_hostname);
+        if (!ipv4address) {
+            continue;
+        }
+        inp_port = strtok(NULL, "\n");
+        port_send = atoi(inp_port);
+
+        // set info to communicate with specified host and port
+        memset(&addr_send, 0, sizeof(addr_send));
+        addr_send.sin_family = AF_INET;
+        bcopy ( ipv4address->h_addr, &(addr_send.sin_addr.s_addr), ipv4address->h_length);
+        addr_send.sin_port = htons(port_send);
+
+        // send message
+        alarm(7);
+        sendto(socket_send, "wannatalk", 9, 0, (struct sockaddr *) &addr_send, sizeof(addr_send));
+        num_bytes = recvfrom(socket_send, buffer, sizeof(buffer), 0, (struct sockaddr *) &addr_send, &addrsize);
+        // cancel timeout
+        alarm(0);
+
+        if (num_bytes > 0) {
+            buffer[num_bytes] = '\0';
+            if (strcmp(buffer, "OK") == 0) {
                 chatting = 1;
-                continue;
-            } else if (strcmp(buffer, "n\n") == 0 && was_asked) {
-                sendto(sd_rcv, "KO", 2, 0, (struct sockaddr *) &addr_rcv, sizeof(addr_rcv));
-                continue;
-            } else {
-                printf("Unknown command\n");
-                continue;
+            } else if (strcmp(buffer, "KO") == 0) {
+                printf("| doesn't want to chat\n");
             }
-
-        } else {
-            // parse hostname and port
-            inp_hostname = strtok(buffer, " ");
-            ipv4address = gethostbyname(inp_hostname);
-            if (!ipv4address) {
-                printf("Unknown host\n");
-                continue;
-            }
-
-            inp_port = strtok(NULL, "\n");
-            port_snd = atoi(inp_port);
-
-            // set info to communicate with specified host and port
-            memset(&addr_snd, 0, sizeof(addr_snd));
-            addr_snd.sin_family = AF_INET;
-            bcopy ( ipv4address->h_addr, &(addr_snd.sin_addr.s_addr), ipv4address->h_length);
-            addr_snd.sin_port = htons(port_snd);
-
-            // send message
-            ualarm(7000000, 0);
-            sendto(sd_snd, "wannatalk", 9, 0, (struct sockaddr *) &addr_snd, sizeof(addr_snd));
-            len_rcv = recvfrom(sd_snd, buffer, sizeof(buffer), 0, (struct sockaddr *) &addr_snd, &addrsize);
-            // cancel timeout
-            ualarm(0, 0);
-
-            // break out of the loop if user wants to chat
-            if (len_rcv > 0) {
-                buffer[len_rcv] = '\0';
-                if (strcmp(buffer, "OK") == 0) {
-                    chatting = 1;
-                } else if (strcmp(buffer, "KO") == 0) {
-                    printf("| doesn't want to chat\n");
-                }
-            }
-
-        }
-
-    }
-
-    if (quit) {
-        printf("Goodbye!\n");
-        exit(0);
-    }
-
-    if (chatting) {
-        printf("Chat begins");
-        exit(0);
-    }
-
-    /*
-    while(chatting) {
-        fputs("> ", stdout);
-        fgets(buffer, sizeof buffer, stdin);
-        buffer[strlen(buffer) - 1] = '\0';
-
-        if (send_on_rcv) {
-            sendto(sd_rcv, buffer, strlen(buffer), 0, (struct sockaddr *) &addr_rcv, sizeof(addr_rcv));
-        } else {
-            sendto(sd_snd, buffer, strlen(buffer), 0, (struct sockaddr *) &addr_snd, sizeof(addr_snd));
         }
     }
-    */
 
+    printf("> \n");
 
 }
