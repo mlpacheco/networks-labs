@@ -124,12 +124,18 @@ int main(int argc, char *argv[]) {
             exit(0);
 
         // parse hostname and port
-        inp_hostname = strtok(buffer, " ");
+        if ((inp_hostname = strtok(buffer, " ")) == NULL) {
+            continue;
+        }
+
         ipv4address = gethostbyname(inp_hostname);
         if (!ipv4address) {
             continue;
         }
-        inp_port = strtok(NULL, "\n");
+
+        if ((inp_port = strtok(NULL, "\n")) == NULL) {
+            continue;
+        }
         port_send = atoi(inp_port);
 
         // set info to communicate with specified host and port
