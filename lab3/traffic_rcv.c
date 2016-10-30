@@ -82,7 +82,7 @@ int main(int argc, char *argv[]) {
     end_sec = ((end_time.tv_sec) * 1000.0 + (end_time.tv_usec) / 1000.0)/1000.0 ;
     elapsed_sec = end_sec - start_sec;
 
-    double recv_Mb = n_bytes / 131072;
+    double recv_Mb = n_bytes / 131072.0;
 
     // print outputs
     printf("received=%d bytes (with overhead) | time=%f sec | bit_rate=%f Mbps\n",
