@@ -6,10 +6,16 @@
 #include <string.h>
 #include <arpa/inet.h>
 #include <signal.h>
+#include <string.h>
 
 #define MAX_BUFF 2000
 
-void alarm_sig_handler(int x) {
+void child_sig_handler(int signum) {
+    int status;
+    wait(&status);
+}
+
+void alarm_sig_handler(int signum) {
     //
 }
 
@@ -67,6 +73,7 @@ int tunnel(char * server_IP, char * server_port, int port_client) {
 
     // stuff to handle signals
     struct sigaction act;
+    memset(&act, 0, sizeof (act));
     act.sa_handler = alarm_sig_handler;
     sigaction (SIGALRM, &act, 0);
 
@@ -122,6 +129,12 @@ int main(int argc, char *argv[]) {
     socklen_t addrsize = sizeof(addr_vpnclient);
     port_vpnclient = atoi(argv[1]);
 
+    // stuff to handle concurrency signals
+    struct sigaction sigchld_action;
+    memset (&sigchld_action, 0, sizeof (sigchld_action));
+    sigchld_action.sa_handler = child_sig_handler;
+    sigaction (SIGCHLD, &sigchld_action, NULL);
+
     // set info
     memset(&addr_vpnclient, 0, sizeof(addr_vpnclient));
     addr_vpnclient.sin_family = AF_INET;
@@ -166,6 +179,8 @@ int main(int argc, char *argv[]) {
                       sizeof(addr_vpnclient));
                 printf("Proceeding to tunnel in port %d\n", 12345 + num_clients);
                 tunnel(server_IP, server_port, 12345 + num_clients);
+                exit(1);
+
             } else {
                 num_clients++;
             }
