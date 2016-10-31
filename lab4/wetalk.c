@@ -267,6 +267,13 @@ int main(int argc, char *argv[]) {
             }
             message[i] = '\0';
 
+            // if we want to send exit message
+            if (strcmp(my_log, "e") == 0) {
+                message[0] = 'E';
+                message[1] = '\0';
+                chatting = 0;
+            }
+
             //printf("message: %s\n", message);
             if (is_client) {
                 sendto(socket_send, message, strlen(message), 0, (struct sockaddr *) &addr_send, sizeof(addr_send));
