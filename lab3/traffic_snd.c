@@ -87,7 +87,7 @@ int main(int argc, char *argv[]) {
     elapsed_sec = end_sec - start_sec;
 
     // convert bytes to Megabits to report bit rate
-    double sent_Mb = bytes_sent / 131072;
+    double sent_Mb = bytes_sent / 131072.0;
 
 
     // output info
