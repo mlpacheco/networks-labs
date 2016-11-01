@@ -10,15 +10,19 @@
 
 #define MAX_BUFF 2000
 
+// signal to deal with concurrency
 void child_sig_handler(int signum) {
     int status;
     wait(&status);
 }
 
+// alarm handler to continue when the server
+// doesnt respond
 void alarm_sig_handler(int signum) {
     //
 }
 
+// tunneling procedure
 int tunnel(char * server_IP, char * server_port, int port_client) {
     int sd_server, port_server;
     int sd_client;
@@ -82,7 +86,6 @@ int tunnel(char * server_IP, char * server_port, int port_client) {
                 (struct sockaddr *) &addr_client, &addrsize);
     while(num_bytes > 0) {
         buffer[num_bytes] = '\0';
-        printf("Recv from client: %s\n", buffer);
 
         sendto(sd_server, buffer, strlen(buffer), 0,
               (struct sockaddr *)&addr_server, sizeof(addr_server));
@@ -160,24 +163,25 @@ int main(int argc, char *argv[]) {
         n_bytes = recvfrom(sd_vpnclient, buffer, sizeof(buffer), 0,
                           (struct sockaddr *) &addr_vpnclient, &addrsize);
 
+        // fork a process to deal with this VPN client and actual client
+        // this is implemented to allow multiple clients to use this proxy
         if (n_bytes > 0) {
 
             k = fork();
 
             if (k == 0) {
                 buffer[n_bytes] = '\0';
-                printf("Rcv: %s\n", buffer);
                 // read data
                 server_IP = strtok(buffer, "$");
                 server_port = strtok(NULL, "$");
+                // allocate an arbitrary port number
                 snprintf(msg, sizeof(msg), "$%d$%s", 12345 + num_clients,
                          server_IP);
-                printf("Real server port_vpnclient is %s\n", server_port);
-                printf("Send: %s\n", msg);
+                // send second port to VPN client
                 sendto(sd_vpnclient, msg, strlen(msg), 0,
                       (struct sockaddr *) &addr_vpnclient,
                       sizeof(addr_vpnclient));
-                printf("Proceeding to tunnel in port %d\n", 12345 + num_clients);
+                // proceed with tunneling
                 tunnel(server_IP, server_port, 12345 + num_clients);
                 exit(1);
 

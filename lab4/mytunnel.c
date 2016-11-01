@@ -67,7 +67,7 @@ int main(int argc, char *argv[]) {
         buffer[n_bytes] = '\0';
         second_port = strtok(buffer, "$");
         IP_confirm = strtok(NULL, "$");
-        // print received port to stdout
+        // print received port to stdout if ACK is succesful
         if (strcmp(IP_confirm, argv[3]) == 0) {
             printf("Port: %s\n", second_port);
         }
