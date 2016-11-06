@@ -7,7 +7,7 @@ public class FileClient {
     public static void main(String[] args) {
         // check thar we have all needed params
         if (args.length != 5) {
-            System.out.println("Run: java FileClient [hostname] [portnumber]" +
+            System.out.println("Run: java FileClient [hostname] [portnumber] " +
                                "[secretkey] [filename] [configfile]");
             return;
         }
@@ -30,9 +30,10 @@ public class FileClient {
             Socket clientSocket =
                 new Socket(args[0], Integer.parseInt(args[1]));
             String message = "$" + args[2] + "$" + args[3];
-            DataOutputStream outToServer =
-                new DataOutputStream(clientSocket.getOutputStream());
-            outToServer.writeBytes(message);
+            PrintWriter outToServer =
+                new PrintWriter(clientSocket.getOutputStream(), true);
+            //System.out.println("Sending: " + message);
+            outToServer.printf(message);
 
             // read configuration file to know how many bytes to read at a time
             BufferedReader inFromFile =
@@ -51,9 +52,11 @@ public class FileClient {
             int totalRead = 0;
 
             long startTime = System.currentTimeMillis();
-            while ((numRead = inFromServer.read(readBytes, 0, numBytes)) > 0) {
+            numRead = inFromServer.read(readBytes, 0, numBytes);
+            while (numRead > 0) {
                 outToFile.write(readBytes);
                 totalRead += numBytes;
+                numRead = inFromServer.read(readBytes, 0, numBytes);
             }
             long endTime = System.currentTimeMillis();
 
@@ -66,6 +69,7 @@ public class FileClient {
                               totalRead, elapsedSeconds, reliableThroughput);
 
         } catch (IOException e) {
+            //e.printStackTrace();
             System.out.println(e.getMessage());
         }
 

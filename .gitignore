@@ -1,3 +1,5 @@
 *.o
+*.class
+*.dat
 *.txt
 *.DS_Store
