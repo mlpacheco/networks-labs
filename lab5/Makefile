@@ -6,7 +6,7 @@ OBJECTS = audiostreamd.o audiolisten.o
 CLASSES = FileClient.class
 
 %.o: %.c
-	$(CC) $< -o $@
+	$(CC) -pthread $< -o $@
 
 %.class: %.java
 	$(JC) $<
