@@ -57,7 +57,7 @@ void sigpoll_handler(int signum) {
             if (mode == 0) {
 
                 printf("old tau: %f\n", tau);
-                a = 1;
+                a = 3;
                 curr_lambda = 1.0/(tau/1000.0);
                 if (Qt < Qopt) {
                     curr_lambda += a;
@@ -144,6 +144,8 @@ int stream(char * filename, int udp_port, char * client_ip, int payload_size,
         seq += 1;
 
     }
+    sendto(udp_sd, "F", 1, 0, (struct sockaddr *)&client_addr,
+           sizeof client_addr);
     printf("Finished streaming\n");
 
     return 1;

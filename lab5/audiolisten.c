@@ -12,12 +12,16 @@
 
 #define MAX_BUFF 1000
 
-// socket we need to share we signals
+// info that we need to share with handlers
+// (threads in this case)
 int udp_sd, buf_sz, fd, payload_size, target_buf;
 double gamma_;
-int last_read = 0;
-int last_written = 0;
+int last_read = -1;
+int last_written = -1;
+int current = 0;
 int occupied = 0;
+int finished_reading = 0;
+int finished_writing = 0;
 
 // flags to control program in and out of signals
 volatile sig_atomic_t sigpoll_signal = 0;
@@ -43,45 +47,50 @@ void *playback(void *threadid) {
     char * out;
     int num_bytes;
 
-    sem_wait(&mutex);
-    if (last_written > last_read) {
-        num_bytes = last_written - last_read;
-        out = malloc((num_bytes + 1) * sizeof(char));
-        int i;
-        int j = 0;
-        for(i = last_read + 1; i <= last_written; i++) {
-            out[j] = shared_buff[i];
-            j++;
-            last_read = i;
-        }
-    } else if (last_written < last_read) {
-        num_bytes = buf_sz - last_read + last_written;
-        out = malloc((num_bytes + 1)* sizeof(char));
-        int i;
-        int j = 0;
-        for (i = last_read + 1; i < buf_sz; i++) {
-            out[j] = shared_buff[i];
-            j++;
-            last_read = i;
-        }
-
-        for (i = 0; i <= last_written; i++) {
-            out[j] = shared_buff[i];
-            j++;
-            last_read = i;
-        }
+    if (finished_reading) {
+      finished_writing = 1;
     } else {
-        num_bytes = 0;
-        out = malloc((num_bytes + 1) * sizeof(char));
-    }
-    // if last written is last read there is nothing to read
-    sem_post(&mutex);
 
-    out[num_bytes] = '\0';
-    if (num_bytes > 0) {
-        printf("last read: %d, num bytes: %d out len: %lu\n",
-                last_read, num_bytes, strlen(out));
-        write(fd, out, strlen(out));
+        sem_wait(&mutex);
+        if (last_written > last_read) {
+            num_bytes = last_written - last_read;
+            out = malloc((num_bytes + 1) * sizeof(char));
+            int i;
+            int j = 0;
+            for(i = last_read + 1; i <= last_written; i++) {
+                out[j] = shared_buff[i];
+                j++;
+                last_read = i;
+            }
+        } else if (last_written < last_read) {
+            num_bytes = buf_sz - last_read + last_written;
+            out = malloc((num_bytes + 1)* sizeof(char));
+            int i;
+            int j = 0;
+            for (i = last_read + 1; i < buf_sz; i++) {
+                out[j] = shared_buff[i];
+                j++;
+                last_read = i;
+            }
+
+            for (i = 0; i <= last_written; i++) {
+                out[j] = shared_buff[i];
+                j++;
+                last_read = i;
+            }
+        } else {
+            num_bytes = 0;
+            out = malloc((num_bytes + 1) * sizeof(char));
+        }
+        // if last written is last read there is nothing to read
+        sem_post(&mutex);
+
+        out[num_bytes] = '\0';
+        if (num_bytes > 0) {
+            printf("last read: %d, num bytes: %d out len: %lu\n",
+                    last_read, num_bytes, strlen(out));
+            write(fd, out, strlen(out));
+        }
     }
     pthread_exit(NULL);
 }
@@ -98,88 +107,56 @@ void *read_stream(void *threadid) {
                          (struct sockaddr *)&server_addr, &addr_len);
     if (num_bytes > 0) {
         buffer[num_bytes] = '\0';
-        printf("received %d bytes\n", num_bytes);
-        // strip sequence number
-        // what to do with the sequence
-        // how to do resequencing?
-        memcpy(sequence, &buffer[0], 4);
-        sequence[4] = '\0';
-        // get payload
-        memcpy(payload, &buffer[4], payload_size);
-        payload[payload_size] = '\0';
+        if (buffer[0] == 'F') {
+            finished_reading = 1;
+        } else {
+            printf("received %d bytes\n", num_bytes);
+            // strip sequence number
+            // what to do with the sequence
+            // how to do resequencing?
+            memcpy(sequence, &buffer[0], 4);
+            sequence[4] = '\0';
+            // get payload
+            memcpy(payload, &buffer[4], payload_size);
+            payload[payload_size] = '\0';
 
-        int free_space;
-        printf("payload %lu bytes\n", strlen(payload));
+            int free_space;
+            //printf("payload %lu bytes\n", strlen(payload));
 
-        sem_wait(&mutex);
-        printf("last_read: %d, last_written: %d\n", last_read, last_written);
-        if (last_written > last_read) {
-            free_space = buf_sz - last_written + last_read;
-            occupied = buf_sz - free_space;
-            int i;
-            int j = 0;
-            for (i = last_written + 1; i < buf_sz; i++) {
-                if (j >= strlen(payload))
-                  break;
-                shared_buff[i] = payload[j];
-                j++;
-                occupied++;
-                last_written = i;
+            if (last_written > last_read) {
+                free_space = buf_sz - last_written + last_read;
+            } else if (last_written < last_read) {
+                free_space = last_read - last_written;
+            } else {
+                free_space = buf_sz;
             }
-            for (i = 0; i <= last_read; i++) {
-                if (j >= strlen(payload))
-                  break;
-                shared_buff[i] = payload[j];
-                j++;
-                occupied++;
-                last_written = i;
-            }
-        } else if (last_written < last_read) {
-            free_space = last_read - last_written;
+
             occupied = buf_sz - free_space;
-            int i;
-            int j = 0;
-            for (i = last_written + 1; i <= last_read; i++) {
-                if (j >= strlen(payload))
-                  break;
-                shared_buff[i] = payload[j];
-                j++;
-                occupied++;
-                last_written = i;
-            }
-        } else if (last_written == last_read) {
-            free_space = buf_sz;
-            occupied = buf_sz - free_space;
-            int i;
-            int j = 0;
-            for (i = last_written + 1; i < buf_sz; i++) {
+
+            sem_wait(&mutex);
+            printf("last_read: %d, last_written: %d\n",
+                    last_read, last_written);
+            int j;
+            for (j = 0; j < num_bytes; j++) {
                 if (j >= strlen(payload))
                     break;
-                shared_buff[i] = payload[j];
-                j++;
+                shared_buff[current] = payload[j];
+                last_written = current;
                 occupied++;
-                last_written = i;
+                current = (current + 1) % buf_sz;
             }
-            for (i = 0; i <= last_read; i++) {
-                if (j >= strlen(payload))
-                    break;
-                shared_buff[i] = payload[j];
-                j++;
-                occupied++;
-                last_written = i;
-            }
+            sem_post(&mutex);
+
+            // send feedback
+            char feedback[MAX_BUFF + 1];
+
+            snprintf(feedback, sizeof feedback, "Q %d %d %f",
+                     occupied, target_buf, gamma_);
+            printf("%s\n", feedback);
+            printf("last written: %d\n", last_written);
+            sendto(udp_sd, feedback, strlen(feedback), 0,
+                   (struct sockaddr *)&server_addr, sizeof server_addr);
         }
-        sem_post(&mutex);
-
-        // send feedback
-        char feedback[MAX_BUFF + 1];
-
-        snprintf(feedback, sizeof feedback, "Q %d %d %f",
-                 occupied, target_buf, gamma_);
-        printf("%s\n", feedback);
-        printf("last written: %d\n", last_written);
-        sendto(udp_sd, feedback, strlen(feedback), 0,
-               (struct sockaddr *)&server_addr, sizeof server_addr);
     }
 
     pthread_exit(NULL);
@@ -225,8 +202,6 @@ int listen_stream(int udp_port, double gamma_) {
     sa_alarm.sa_handler = alarm_handl;
     sigaction(SIGALRM, &sa_alarm, 0);
 
-
-
     // open audio dev
     fd = open("/dev/audio", O_RDWR);
 
@@ -235,7 +210,7 @@ int listen_stream(int udp_port, double gamma_) {
 
     // msec to microsec and set alarm
     ualarm(1.0/gamma_ * 1000, 1.0/gamma_ * 1000);
-    while (1) {
+    while (finished_writing == 0) {
         pthread_t t1;
         pthread_t t2;
         if (sigpoll_signal == 1) {
