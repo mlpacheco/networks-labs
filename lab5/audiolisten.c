@@ -18,7 +18,8 @@ int udp_sd, buf_sz, fd, payload_size, target_buf;
 double gamma_;
 int last_read = -1;
 int last_written = -1;
-int current = 0;
+int current_write = 0;
+int current_read = 0;
 int occupied = 0;
 int finished_reading = 0;
 int finished_writing = 0;
@@ -50,39 +51,23 @@ void *playback(void *threadid) {
     if (finished_reading) {
       finished_writing = 1;
     } else {
-
-        sem_wait(&mutex);
         if (last_written > last_read) {
             num_bytes = last_written - last_read;
-            out = malloc((num_bytes + 1) * sizeof(char));
-            int i;
-            int j = 0;
-            for(i = last_read + 1; i <= last_written; i++) {
-                out[j] = shared_buff[i];
-                j++;
-                last_read = i;
-            }
         } else if (last_written < last_read) {
             num_bytes = buf_sz - last_read + last_written;
-            out = malloc((num_bytes + 1)* sizeof(char));
-            int i;
-            int j = 0;
-            for (i = last_read + 1; i < buf_sz; i++) {
-                out[j] = shared_buff[i];
-                j++;
-                last_read = i;
-            }
-
-            for (i = 0; i <= last_written; i++) {
-                out[j] = shared_buff[i];
-                j++;
-                last_read = i;
-            }
         } else {
             num_bytes = 0;
-            out = malloc((num_bytes + 1) * sizeof(char));
         }
-        // if last written is last read there is nothing to read
+
+        out = malloc((num_bytes + 1) * sizeof(char));
+
+        sem_wait(&mutex);
+        int j;
+        for (j = 0; j < num_bytes; j++) {
+            out[j] = shared_buff[current_read];
+            last_read = current_read;
+            current_read = (current_read + 1) % buf_sz;
+        }
         sem_post(&mutex);
 
         out[num_bytes] = '\0';
@@ -140,10 +125,10 @@ void *read_stream(void *threadid) {
             for (j = 0; j < num_bytes; j++) {
                 if (j >= strlen(payload))
                     break;
-                shared_buff[current] = payload[j];
-                last_written = current;
+                shared_buff[current_write] = payload[j];
+                last_written = current_write;
                 occupied++;
-                current = (current + 1) % buf_sz;
+                current_write = (current_write + 1) % buf_sz;
             }
             sem_post(&mutex);
 
