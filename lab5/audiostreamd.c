@@ -35,6 +35,8 @@ void sigpoll_handler(int signum) {
     int Qt, Qopt;
     double gamma;
 
+    double a, curr_lambda, new_tau;
+
     num_bytes = recvfrom(udp_sd, buffer, sizeof buffer, 0,
                          (struct sockaddr *)&client_addr, &addr_len);
 
@@ -53,21 +55,24 @@ void sigpoll_handler(int signum) {
 
             // Method A
             if (mode == 0) {
-                double a = 10;
+
+                printf("old tau: %f\n", tau);
+                a = 1;
+                curr_lambda = 1.0/(tau/1000.0);
                 if (Qt < Qopt) {
-                    double new_tau = tau - a;
-                    if (new_tau < 0)
-                        tau = 0.0;
-                    else
-                        tau = new_tau;
+                    curr_lambda += a;
                 } else if (Qt > Qopt) {
-                    double new_tau = tau + a;
-                    if (new_tau < 0)
-                        tau = 0.0;
-                    else
-                        tau = new_tau;
+                    curr_lambda -= a;
                 }
-                // if they are equal leave current tau
+
+                new_tau = (1.0/curr_lambda)*1000;
+                if (new_tau < 0) {
+                    tau = 0.0;
+                } else {
+                    tau = new_tau;
+                }
+
+                printf("new tau: %f\n", tau);
             }
 
         }
