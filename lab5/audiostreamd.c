@@ -56,7 +56,7 @@ void sigpoll_handler(int signum) {
             // Method A
             if (mode == 0) {
 
-                printf("old tau: %f\n", tau);
+                //printf("old tau: %f\n", tau);
                 a = 3;
                 curr_lambda = 1.0/(tau/1000.0);
                 if (Qt < Qopt) {
@@ -72,7 +72,7 @@ void sigpoll_handler(int signum) {
                     tau = new_tau;
                 }
 
-                printf("new tau: %f\n", tau);
+                //printf("new tau: %f\n", tau);
             }
 
         }

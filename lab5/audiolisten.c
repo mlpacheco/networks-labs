@@ -9,6 +9,8 @@
 #include <signal.h>
 #include <semaphore.h>
 #include <pthread.h>
+#include <sys/time.h>
+
 
 #define MAX_BUFF 1000
 
@@ -30,7 +32,10 @@ volatile sig_atomic_t alarm_signal = 0;
 
 // shared buffer and semaphore to control shared access
 char * shared_buff;
-sem_t mutex;
+sem_t mutex, mutex2;
+
+// keep a log and write to it when stream finishes
+char * log_buff;
 
 void alarm_handl(int sig) {
     //printf("Got alarm signal\n");
@@ -72,10 +77,12 @@ void *playback(void *threadid) {
 
         out[num_bytes] = '\0';
         if (num_bytes > 0) {
-            printf("last read: %d, num bytes: %d out len: %lu\n",
-                    last_read, num_bytes, strlen(out));
+            //printf("last read: %d, num bytes: %d out len: %lu\n",
+            //        last_read, num_bytes, strlen(out));
             write(fd, out, strlen(out));
         }
+
+        free(out);
     }
     pthread_exit(NULL);
 }
@@ -95,10 +102,9 @@ void *read_stream(void *threadid) {
         if (buffer[0] == 'F') {
             finished_reading = 1;
         } else {
-            printf("received %d bytes\n", num_bytes);
+            //printf("received %d bytes\n", num_bytes);
             // strip sequence number
-            // what to do with the sequence
-            // how to do resequencing?
+            // what to do with the sequence ? nothing here
             memcpy(sequence, &buffer[0], 4);
             sequence[4] = '\0';
             // get payload
@@ -119,8 +125,8 @@ void *read_stream(void *threadid) {
             occupied = buf_sz - free_space;
 
             sem_wait(&mutex);
-            printf("last_read: %d, last_written: %d\n",
-                    last_read, last_written);
+            //printf("last_read: %d, last_written: %d\n",
+            //        last_read, last_written);
             int j;
             for (j = 0; j < num_bytes; j++) {
                 if (j >= strlen(payload))
@@ -137,8 +143,29 @@ void *read_stream(void *threadid) {
 
             snprintf(feedback, sizeof feedback, "Q %d %d %f",
                      occupied, target_buf, gamma_);
-            printf("%s\n", feedback);
-            printf("last written: %d\n", last_written);
+
+            char log_step[MAX_BUFF + 1];
+            struct timeval t;
+            gettimeofday(&t, NULL);
+            double millis = (t.tv_sec * 1000) + (t.tv_usec / 1000.0);
+            snprintf(log_step, sizeof log_step, "%f %d\n", millis, occupied);
+
+            sem_wait(&mutex2);
+            //printf("----\n");
+            //printf("prev log_buff: %lu\n", strlen(log_buff));
+            char * log_with_step;
+            log_with_step = malloc((strlen(log_buff) + strlen(log_step) + 1) * sizeof(char));
+            strcpy(log_with_step, log_buff);
+            strcat(log_with_step, log_step);
+            log_with_step[strlen(log_buff) + strlen(log_step)] = '\0';
+            log_buff = log_with_step;
+            //printf("log_step: %s", log_step);
+            //printf("after log_buff: %lu\n", strlen(log_buff));
+            //printf("----\n");
+            sem_post(&mutex2);
+
+            //printf("%s\n", feedback);
+            //printf("last written: %d\n", last_written);
             sendto(udp_sd, feedback, strlen(feedback), 0,
                    (struct sockaddr *)&server_addr, sizeof server_addr);
         }
@@ -192,6 +219,7 @@ int listen_stream(int udp_port, double gamma_) {
 
     // create semaphore
     sem_init(&mutex, 0, 1);
+    sem_init(&mutex2, 0, 1);
 
     // msec to microsec and set alarm
     ualarm(1.0/gamma_ * 1000, 1.0/gamma_ * 1000);
@@ -208,6 +236,8 @@ int listen_stream(int udp_port, double gamma_) {
     }
 
     sem_destroy(&mutex); // destroy semaphore
+    sem_destroy(&mutex2);
+
     return 1;
 }
 
@@ -240,6 +270,9 @@ int main(int argc, char *argv[]) {
 
     // set size of shared buffer
     shared_buff = malloc(buf_sz * sizeof(char));
+
+    // set log buffer to be empty
+    log_buff = malloc((MAX_BUFF + 1) * sizeof(char));
 
     payload_size = atoi(argv[4]);
     playback_del = atof(argv[5]);
@@ -291,12 +324,18 @@ int main(int argc, char *argv[]) {
         response = strtok(buffer, " ");
         if (strcmp(response, "OK") == 0) {
             listen_stream(udp_port, gamma_);
+            printf("Finished receiving\n");
+            FILE *f_log = fopen(logfile, "w");
+            fputs(log_buff, f_log);
         } else if (strcmp(response, "KO") == 0) {
             printf("Request denied\n");
         } else {
             printf("Unexpected response\n");
         }
     }
+
+    //free(shared_buff);
+    //free(log_buff);
 
     close(tcp_server_sd);
 
