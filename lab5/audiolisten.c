@@ -64,7 +64,7 @@ void *playback(void *threadid) {
             num_bytes = 0;
         }
 
-        out = malloc((num_bytes + 1) * sizeof(char));
+        out = malloc((num_bytes + 1));
 
         sem_wait(&mutex);
         int j;
@@ -154,7 +154,7 @@ void *read_stream(void *threadid) {
             //printf("----\n");
             //printf("prev log_buff: %lu\n", strlen(log_buff));
             char * log_with_step;
-            log_with_step = malloc((strlen(log_buff) + strlen(log_step) + 1) * sizeof(char));
+            log_with_step = malloc(strlen(log_buff) + strlen(log_step) + 1);
             strcpy(log_with_step, log_buff);
             strcat(log_with_step, log_step);
             log_with_step[strlen(log_buff) + strlen(log_step)] = '\0';
@@ -176,13 +176,13 @@ void *read_stream(void *threadid) {
 }
 
 int listen_stream(int udp_port, double gamma_) {
-    printf("listen_stream\n");
+    //printf("listen_stream\n");
     struct sockaddr_in udp_addr;
     memset(&udp_addr, 0, sizeof udp_addr);
     udp_addr.sin_family = AF_INET;
     udp_addr.sin_addr.s_addr = htonl(INADDR_ANY);
     udp_addr.sin_port = htons(udp_port);
-    printf("udp port %d\n", udp_port);
+    //printf("udp port %d\n", udp_port);
 
     // create socket for listening to stream
     if ((udp_sd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
@@ -191,7 +191,7 @@ int listen_stream(int udp_port, double gamma_) {
     }
 
     // bind listening socket
-    printf("bind udp socket %d\n", udp_sd);
+    //printf("bind udp socket %d\n", udp_sd);
     if (bind(udp_sd, (struct sockaddr *)&udp_addr, sizeof udp_addr) < 0) {
         perror("bind error");
         return -1;
@@ -229,10 +229,13 @@ int listen_stream(int udp_port, double gamma_) {
         if (sigpoll_signal == 1) {
             sigpoll_signal = 0;
             pthread_create(&t1, NULL, read_stream, 0);
-        } else if (alarm_signal == 1) {
+        }
+        if (alarm_signal == 1) {
             alarm_signal = 0;
             pthread_create(&t2, NULL, playback, 0);
         }
+
+
     }
 
     sem_destroy(&mutex); // destroy semaphore
@@ -269,10 +272,11 @@ int main(int argc, char *argv[]) {
     char * logfile;
 
     // set size of shared buffer
-    shared_buff = malloc(buf_sz * sizeof(char));
+    shared_buff = malloc(buf_sz);
 
     // set log buffer to be empty
-    log_buff = malloc((MAX_BUFF + 1) * sizeof(char));
+    log_buff = malloc(1);
+    log_buff[0] = '\0';
 
     payload_size = atoi(argv[4]);
     playback_del = atof(argv[5]);
@@ -281,7 +285,7 @@ int main(int argc, char *argv[]) {
     target_buf = atoi(argv[8]);
     logfile = argv[9];
 
-    printf("IP address %s\n", argv[1]);
+    //printf("IP address %s\n", argv[1]);
     inet_pton(AF_INET, argv[1], &host_addr);
     server_ipv4_addr =
         gethostbyaddr(&host_addr, sizeof host_addr, AF_INET);
@@ -314,7 +318,7 @@ int main(int argc, char *argv[]) {
 
     // create message
     sprintf(message, "%s %s", argv[3], argv[10]);
-    printf("Message: %s\n", message);
+    //printf("Message: %s\n", message);
 
 
     write(tcp_server_sd, message, strlen(message));
@@ -323,6 +327,7 @@ int main(int argc, char *argv[]) {
         buffer[num_bytes] = '\0';
         response = strtok(buffer, " ");
         if (strcmp(response, "OK") == 0) {
+            printf("Starting...\n");
             listen_stream(udp_port, gamma_);
             printf("Finished receiving\n");
             FILE *f_log = fopen(logfile, "w");
@@ -335,7 +340,7 @@ int main(int argc, char *argv[]) {
     }
 
     //free(shared_buff);
-    //free(log_buff);
+    free(log_buff);
 
     close(tcp_server_sd);
 
