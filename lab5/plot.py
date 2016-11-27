@@ -10,9 +10,14 @@ for line in f:
     values.append(value)
 
 time = map(float, time)
+values = map(float, values)
 time = [round(x - time[0],2) for x in time]
-values = map(int, values)
+values = [round(x ,2) for x in values]
+
+#values = map(int, values)
 
 plt.figure(1)
-plt.plot(time, values)
+plt.plot(time, values, color='red')
+#plt.plot(time, values)
+
 plt.show()
