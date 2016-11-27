@@ -11,8 +11,8 @@
 #define MAX_BUFF 10000
 
 // variables needed in signal
-int sd;
-struct sockaddr_in server_addr;
+int udp_sd;
+struct sockaddr_in server_addr_udp;
 
 int payload_sz;
 int last_checked = -1;
@@ -21,10 +21,11 @@ int * received_packets;
 char * window;
 
 void sigalrm_handl_nack(int sig) {
+    printf("signal handler\n");
     int i, j, offset;
     char message[MAX_BUFF + 1];
     char payload[payload_sz + 1];
-    for (i = last_checked + 1; offset < last_received; offset++) {
+    for (i = last_checked + 1; i < last_received; i++) {
         if (received_packets[i] == 0) {
             // send NACK
             offset = i * payload_sz;
@@ -33,8 +34,9 @@ void sigalrm_handl_nack(int sig) {
             }
             payload[j] = '\0';
             snprintf(message, sizeof(message), "$NACK$%d", i);
-            sendto(sd, message, strlen(message), 0,
-                   (struct sockaddr *)&server_addr, sizeof(server_addr));
+            sendto(udp_sd, message, strlen(message), 0,
+                   (struct sockaddr *)&server_addr_udp, sizeof(server_addr_udp));
+            printf("Sent: %s\n", message);
             last_checked = i;
         }
     }
@@ -69,18 +71,19 @@ int receive_file(char * filepath, int num_bytes, socklen_t addrlen) {
     prev_seqnumber = -1;
 
     // set alarm to check not received packets
-    ualarm(100000, 100000);
+    ualarm(1000, 1000);
 
-    while ((bytes_read = recvfrom(sd, buffer, sizeof(buffer), 0,
-                                  (struct sockaddr *)&server_addr,
-                                  &addrlen)) > 0) {
+    while (1) {
+        bytes_read = recvfrom(udp_sd, buffer, sizeof(buffer), 0,
+                              (struct sockaddr *)&server_addr_udp,
+                               &addrlen);
         buffer[bytes_read] = '\0';
 
         // parse message
         seqnumber_str = strtok(buffer, "$");
 
         seqnumber = atoi(seqnumber_str);
-
+        printf("Received seqnumber %d\n", seqnumber);
         if (seqnumber == -1) {
             // parse command
             total_bytes_str = strtok(NULL, "$");
@@ -101,6 +104,7 @@ int receive_file(char * filepath, int num_bytes, socklen_t addrlen) {
             received_packets[seqnumber] = 1;
             //fputs(payload, f_dwnld);
             offset = strlen(payload) * seqnumber;
+            printf("offset: %d\n", offset);
             int i;
             for (i = 0; i < strlen(payload); i++) {
                 window[offset + i] = payload[i];
@@ -155,14 +159,15 @@ int main(int argc, char *argv[]) {
     }
 
     // all variables that we will need
-    int port, num_bytes, bytes_read, write_smth, total_read;
+    int tcp_sd, tcp_port, udp_port, num_bytes, bytes_read;
+    struct sockaddr_in server_addr_tcp;
     FILE *f_config;
     struct hostent *ipv4address;
     char message[MAX_BUFF + 1];
     char buffer[MAX_BUFF + 1];
 
     // get port and host
-    port = atoi(argv[2]);
+    tcp_port = atoi(argv[2]);
     ipv4address = gethostbyname(argv[1]);
     if (!ipv4address) {
         perror("unknown host");
@@ -170,31 +175,66 @@ int main(int argc, char *argv[]) {
     }
 
     // set server info
-    memset(&server_addr, 0, sizeof(server_addr));
-    server_addr.sin_family = AF_INET;
-    bcopy(ipv4address->h_addr, &(server_addr.sin_addr.s_addr),
+    memset(&server_addr_tcp, 0, sizeof(server_addr_tcp));
+    server_addr_tcp.sin_family = AF_INET;
+    bcopy(ipv4address->h_addr, &(server_addr_tcp.sin_addr.s_addr),
           ipv4address->h_length);
-    server_addr.sin_port = htons(port);
+    server_addr_tcp.sin_port = htons(tcp_port);
 
     // create socket
-    if ((sd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0) {
+    if ((tcp_sd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
         perror("socket error");
         return -1;
     }
 
+    // connect to socket
+    if (connect(tcp_sd, (struct sockaddr *)&server_addr_tcp, sizeof(server_addr_tcp)) < 0) {
+        perror("connect error");
+        close(tcp_sd);
+        return -1;
+    }
+
     // create the message to be sent and send it to the server
+    // then read port that will be used for UDP transfer
     snprintf(message, sizeof(message), "$%s$%s", argv[3], argv[4]);
-    sendto(sd, message, strlen(message), 0, (struct sockaddr *) &server_addr,
-           sizeof(server_addr));
+    write(tcp_sd, message, strlen(message));
+    printf("Sent: %s\n", message);
+    bytes_read = read(tcp_sd, buffer, MAX_BUFF);
 
-    // read configuration file to know how many bytes to read at a time
-    f_config = fopen(argv[5], "r");
-    fscanf(f_config, "%s", buffer);
-    num_bytes = atoi(buffer);
-    fclose(f_config);
+    // we no longer need this
+    close(tcp_sd);
 
-    receive_file(argv[4], num_bytes, sizeof(server_addr));
+    if (bytes_read > 0) {
+        buffer[bytes_read] = '\0';
+        udp_port = atoi(buffer);
+        printf("Received: %d\n", udp_port);
 
+        // set server info
+        memset(&server_addr_udp, 0, sizeof(server_addr_udp));
+        server_addr_udp.sin_family = AF_INET;
+        bcopy(ipv4address->h_addr, &(server_addr_udp.sin_addr.s_addr),
+              ipv4address->h_length);
+        server_addr_udp.sin_port = htons(udp_port);
 
+        // create UDP socket
+        if ((udp_sd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0) {
+            perror("socket error");
+            return -1;
+        }
+
+        // bind socket to listen to file packets
+        if ((bind(udp_sd, (struct sockaddr *)&server_addr_udp, sizeof(server_addr_udp))) < 0) {
+            perror("bind error");
+            return -1;
+        }
+
+        // read configuration file to know how many bytes to read at a time
+        f_config = fopen(argv[5], "r");
+        fscanf(f_config, "%s", buffer);
+        num_bytes = atoi(buffer);
+        fclose(f_config);
+
+        receive_file(argv[4], num_bytes, sizeof(server_addr_udp));
+    }
 
 }
