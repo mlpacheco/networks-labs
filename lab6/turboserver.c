@@ -12,6 +12,9 @@
 // keep variables we need to access in signal
 int sd, window_sz, payload_sz;
 char * window;
+int counter_tot = 1;
+int counter_loss = 1;
+
 
 // signal handler to not block the server waiting
 // for child processes
@@ -23,6 +26,19 @@ void childsig_handler(int signum) {
 int dropsendto(int sd, const char * message, int size,
                const struct sockaddr * addr, int addr_size, int totalnum,
                int lossnum) {
+    if (counter_tot == totalnum && counter_loss < lossnum) {
+        // ignore and don't send
+        counter_loss++;
+    } else if (counter_tot == totalnum && counter_loss == lossnum) {
+        // ignore and don't send
+        counter_loss = 1;
+        counter_tot = 1;
+    } else {
+        // send packet
+        int ret = sendto(sd, message, size, 0, addr, addr_size);
+        return ret;
+    }
+
     return -1;
 }
 
@@ -116,7 +132,7 @@ int transfer_file(char * filepath, int numbytes, int sd,
             //printf("message: %s\n", message);
 
             // change this call with the wrapper
-            sendto(sd, message, strlen(message), 0, addr, addrsize);
+            dropsendto(sd, message, strlen(message), addr, addrsize, 10, 1);
             seqnumber++;
         }
 

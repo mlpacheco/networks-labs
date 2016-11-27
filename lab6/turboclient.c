@@ -101,7 +101,8 @@ int receive_file(char * filepath, int num_bytes, socklen_t addrlen) {
             received_packets[seqnumber] = 1;
             //fputs(payload, f_dwnld);
             offset = strlen(payload) * seqnumber;
-            for (int i = 0; i < strlen(payload); i++) {
+            int i;
+            for (i = 0; i < strlen(payload); i++) {
                 window[offset + i] = payload[i];
             }
             total_read += bytes_read;

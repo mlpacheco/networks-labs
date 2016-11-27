@@ -2,9 +2,10 @@
 
 CC = gcc
 OBJECTS = turboclient.o turboserver.o
+LIB = -lm
 
 %.o: %.c
-	$(CC) $< -o $@
+	$(CC) $(LIB) $< -o $@
 
 all: $(OBJECTS)
 
