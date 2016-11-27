@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <fcntl.h>
 
 #define MAX_BUFF 10000
 
@@ -72,6 +73,16 @@ int transfer_file(char * filepath, int numbytes, int sd,
     char buffer[MAX_BUFF + 1];
     char message[MAX_BUFF + 1];
     int seqnumber = 0;
+
+     //stuff to handle sigpoll signals
+    struct sigaction sa_sigpoll;
+    memset(&sa_sigpoll, 0, sizeof sa_sigpoll);
+    sa_sigpoll.sa_handler = sigpoll_handl_nack;
+    sa_sigpoll.sa_flags = SA_NODEFER;
+    sigaction(SIGPOLL, &sa_sigpoll, 0);
+
+    fcntl(sd, F_SETOWN, getpid());
+    fcntl(sd, F_SETFL, FASYNC);
 
     // open file to read content to upload to client
     f_dwnld = fopen(filepath, "rb");

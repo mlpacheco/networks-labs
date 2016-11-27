@@ -6,6 +6,7 @@
 #include <string.h>
 #include <sys/time.h>
 #include <math.h>
+#include <signal.h>
 
 #define MAX_BUFF 10000
 
@@ -14,7 +15,7 @@ int sd;
 struct sockaddr_in server_addr;
 
 int payload_sz;
-int last_checked = 0;
+int last_checked = -1;
 int last_received = -1;
 int * received_packets;
 char * window;
@@ -34,6 +35,7 @@ void sigalrm_handl_nack(int sig) {
             snprintf(message, sizeof(message), "$NACK$%d", i);
             sendto(sd, message, strlen(message), 0,
                    (struct sockaddr *)&server_addr, sizeof(server_addr));
+            last_checked = i;
         }
     }
 }
@@ -51,6 +53,13 @@ int receive_file(char * filepath, int num_bytes, socklen_t addrlen) {
     char * payload_sz_str;
     char * total_bytes_str;
 
+    //stuff to handle alarm signals
+    struct sigaction sa_alarm;
+    memset(&sa_alarm, 0, sizeof sa_alarm);
+    //sa_alarm.sa_flags = SA_NODEFER;
+    sa_alarm.sa_handler = sigalrm_handl_nack;
+    sigaction(SIGALRM, &sa_alarm, 0);
+
     // open file to write downloaded contents
     f_dwnld = fopen(filepath, "ab");
 
@@ -58,6 +67,10 @@ int receive_file(char * filepath, int num_bytes, socklen_t addrlen) {
     gettimeofday(&start_time, 0);
     total_read = 0;
     prev_seqnumber = -1;
+
+    // set alarm to check not received packets
+    ualarm(100000, 100000);
+
     while ((bytes_read = recvfrom(sd, buffer, sizeof(buffer), 0,
                                   (struct sockaddr *)&server_addr,
                                   &addrlen)) > 0) {
