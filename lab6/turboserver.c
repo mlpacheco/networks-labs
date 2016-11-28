@@ -15,6 +15,7 @@ char * window;
 int counter_tot = 1;
 int counter_loss = 1;
 
+volatile sig_atomic_t transmission_incomplete = 1;
 
 // signal handler to not block the server waiting
 // for child processes
@@ -39,6 +40,7 @@ int dropsendto(int sd, const char * message, int size,
     } else {
         // send packet
         int ret = sendto(sd, message, size, 0, addr, addr_size);
+        printf("sent %d bytes\n", ret);
         counter_tot++;
         return ret;
     }
@@ -80,9 +82,9 @@ void sigpoll_handl_nack(int sig) {
             snprintf(message, sizeof(message), "$%d$%s", seqnumber, payload);
             sendto(udp_sd, message, strlen(message), 0,
                    (struct sockaddr *)&their_addr, addr_len);
-            printf("sending: %s\n", message);
+        } else if (strcmp(nack, "DONE") == 0) {
+            transmission_incomplete = 0;
         }
-
     }
 }
 
@@ -122,6 +124,7 @@ int transfer_file(char * filepath, int numbytes, int sd,
     // need to dinamically allocate size of window
     // I am stating by keeping a window of the size of the whole file
     window = malloc(file_sz + 1);
+    payload_sz = numbytes;
 
     // if the file exists, write to client per bytes specified
     if (f_dwnld != NULL) {
@@ -136,6 +139,7 @@ int transfer_file(char * filepath, int numbytes, int sd,
 
             // create the message with sequence number and payload
             snprintf(message, sizeof(message), "$%d$%s", seqnumber, buffer);
+            printf("Seqnumber: %d, payload_sz: %lu\n", seqnumber, strlen(buffer));
             //printf("message: %s\n", message);
 
             // change this call with the wrapper
@@ -144,9 +148,14 @@ int transfer_file(char * filepath, int numbytes, int sd,
         }
 
         // signaling the end of the transmission
-        snprintf(message, sizeof(message), "$-2$%d", bytes_read);
-        sendto(sd, message, strlen(message), 0, addr, addrsize);
+        //snprintf(message, sizeof(message), "$-2$%d", bytes_read);
+        //sendto(sd, message, strlen(message), 0, addr, addrsize);
     }
+
+    while(transmission_incomplete == 1) {
+    }
+
+    printf("Done\n");
     fclose(f_dwnld);
 
     return 0;

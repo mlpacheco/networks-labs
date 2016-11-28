@@ -19,20 +19,16 @@ int last_checked = -1;
 int last_received = -1;
 int * received_packets;
 char * window;
+size_t received_packets_sz;
 
 void sigalrm_handl_nack(int sig) {
-    printf("signal handler\n");
+    //printf("signal handler\n");
     int i, j, offset;
     char message[MAX_BUFF + 1];
     char payload[payload_sz + 1];
     for (i = last_checked + 1; i < last_received; i++) {
         if (received_packets[i] == 0) {
             // send NACK
-            offset = i * payload_sz;
-            for (j = 0; j < payload_sz; j++) {
-                payload[j] = window[offset + i];
-            }
-            payload[j] = '\0';
             snprintf(message, sizeof(message), "$NACK$%d", i);
             sendto(udp_sd, message, strlen(message), 0,
                    (struct sockaddr *)&server_addr_udp, sizeof(server_addr_udp));
@@ -40,6 +36,16 @@ void sigalrm_handl_nack(int sig) {
             last_checked = i;
         }
     }
+}
+
+int received_all() {
+    int i;
+    for (i = 0; i < received_packets_sz; i++) {
+        if (received_packets[i] == 0) {
+            return 0;
+        }
+    }
+    return 1;
 }
 
 // this had to be modified according to protocol
@@ -62,9 +68,6 @@ int receive_file(char * filepath, int num_bytes, socklen_t addrlen) {
     sa_alarm.sa_handler = sigalrm_handl_nack;
     sigaction(SIGALRM, &sa_alarm, 0);
 
-    // open file to write downloaded contents
-    f_dwnld = fopen(filepath, "ab");
-
     // read from the socket per specified bytes and write to local file
     gettimeofday(&start_time, 0);
     total_read = 0;
@@ -72,50 +75,67 @@ int receive_file(char * filepath, int num_bytes, socklen_t addrlen) {
 
     // set alarm to check not received packets
     ualarm(1000, 1000);
+    int all = 0;
 
-    while (1) {
+    while (all == 0) {
         bytes_read = recvfrom(udp_sd, buffer, sizeof(buffer), 0,
                               (struct sockaddr *)&server_addr_udp,
                                &addrlen);
-        buffer[bytes_read] = '\0';
-
-        // parse message
-        seqnumber_str = strtok(buffer, "$");
-
-        seqnumber = atoi(seqnumber_str);
-        printf("Received seqnumber %d\n", seqnumber);
-        if (seqnumber == -1) {
-            // parse command
-            total_bytes_str = strtok(NULL, "$");
-            payload_sz_str = strtok(NULL, "$");
-            // transform data
-            total_bytes = atoi(total_bytes_str);
-            payload_sz = atoi(payload_sz_str);
-            // set window and packet tracker
-            window = malloc(total_bytes + 1);
-            received_packets = malloc(ceil(total_bytes / payload_sz)
-                                       * sizeof(int));
-            memset(received_packets, 0, total_bytes);
-        } else if (seqnumber == -2) {
-            // this means the transmission ended (for now)
-            break;
-        } else {
-            payload = strtok(NULL, "$");
-            received_packets[seqnumber] = 1;
-            //fputs(payload, f_dwnld);
-            offset = strlen(payload) * seqnumber;
-            printf("offset: %d\n", offset);
-            int i;
-            for (i = 0; i < strlen(payload); i++) {
-                window[offset + i] = payload[i];
+        if (bytes_read > 0) {
+            buffer[bytes_read] = '\0';
+            // parse message
+            seqnumber_str = strtok(buffer, "$");
+            seqnumber = atoi(seqnumber_str);
+            printf("Received seqnumber %d\n", seqnumber);
+            if (seqnumber == -1) {
+                // parse command
+                total_bytes_str = strtok(NULL, "$");
+                payload_sz_str = strtok(NULL, "$");
+                // transform data
+                total_bytes = atoi(total_bytes_str);
+                payload_sz = atoi(payload_sz_str);
+                // set window and packet tracker
+                window = malloc(total_bytes + 1);
+                received_packets_sz = ceil((total_bytes * 1.0) / payload_sz);
+                printf("number of packets: %zu\n", received_packets_sz);
+                received_packets = malloc(received_packets_sz
+                                           * sizeof(int));
+                memset(received_packets, 0, received_packets_sz);
+            } else {
+                payload = strtok(NULL, "$");
+                received_packets[seqnumber] = 1;
+                printf("Payload size: %lu\n", strlen(payload));
+                //fputs(payload, f_dwnld);
+                offset = payload_sz * seqnumber;
+                printf("offset: %d\n", offset);
+                int i;
+                for (i = 0; i < strlen(payload); i++) {
+                    window[offset + i] = payload[i];
+                }
+                total_read += bytes_read;
+                last_received = seqnumber;
             }
-            total_read += bytes_read;
-            last_received = seqnumber;
         }
 
+        all = received_all();
+
     }
-    gettimeofday(&end_time, 0);
+
+    // unset alarm and send a message to signal the end
+    ualarm(0,0);
+    sendto(udp_sd, "DONE", 4, 0, (struct sockaddr *)&server_addr_udp,
+           sizeof server_addr_udp);
+    printf("Sent done\n");
+    // write to file
+    printf("%s\n", filepath);
+    f_dwnld = fopen(filepath, "ab");
+    int i;
+    for (i = 0; i < total_bytes; i++) {
+        fprintf(f_dwnld, "%c", window[i]);
+    }
     fclose(f_dwnld);
+
+    gettimeofday(&end_time, 0);
 
     // calculate sececonds we took
     start_sec = ((start_time.tv_sec) * 1000.0 + \
@@ -124,7 +144,7 @@ int receive_file(char * filepath, int num_bytes, socklen_t addrlen) {
             (end_time.tv_usec) / 1000.0)/1000.0 ;
     elapsed_sec = end_sec - start_sec;
 
-     // trasnform bytes to Megabits
+     // transform bytes to Megabits
     double total_Mb = total_read / 131072.0;
 
     // calculate reliable throughput = msg_len / RTT
