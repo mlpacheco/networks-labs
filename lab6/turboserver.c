@@ -79,7 +79,7 @@ void sigpoll_handl_nack(int sig) {
             }
             payload[i] = '\0';
 
-            snprintf(message, sizeof(message), "$%d$%s", seqnumber, payload);
+            snprintf(message, sizeof(message), "%d$%s", seqnumber, payload);
             sendto(udp_sd, message, strlen(message), 0,
                    (struct sockaddr *)&their_addr, addr_len);
         } else if (strcmp(nack, "DONE") == 0) {
@@ -117,7 +117,7 @@ int transfer_file(char * filepath, int numbytes, int sd,
     int current = 0;
 
     // signaling beginning and letting client know the size of the file
-    snprintf(message, sizeof(message), "$-1$%d$%d", file_sz, numbytes);
+    snprintf(message, sizeof(message), "-1$%d$%d", file_sz, numbytes);
     sendto(sd, message, strlen(message), 0, addr, addrsize);
     printf("Sent: %s\n", message);
 
@@ -138,9 +138,8 @@ int transfer_file(char * filepath, int numbytes, int sd,
             }
 
             // create the message with sequence number and payload
-            snprintf(message, sizeof(message), "$%d$%s", seqnumber, buffer);
-            printf("Seqnumber: %d, payload_sz: %lu\n", seqnumber, strlen(buffer));
-            //printf("message: %s\n", message);
+            snprintf(message, sizeof(message), "%d$%s", seqnumber, buffer);
+            printf("Seqnumber: %d, payload_sz: %lu, message_sz: %lu\n", seqnumber, strlen(buffer), strlen(message));
 
             // change this call with the wrapper
             dropsendto(sd, message, strlen(message), addr, addrsize, 10, 1);
