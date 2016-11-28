@@ -53,17 +53,17 @@ void sigpoll_handl_nack(int sig) {
     char buffer[MAX_BUFF + 1];
     struct sockaddr_in their_addr;
     socklen_t addr_len = sizeof(their_addr);
-    int num_bytes, seqnumber, start;
+    int bytes_read, seqnumber, start;
     char * nack;
     char * seqnumber_str;
     char payload[payload_sz + 1];
     char message[MAX_BUFF + 1];
 
-    num_bytes = recvfrom(udp_sd, buffer, sizeof(buffer), 0,
+    bytes_read = recvfrom(udp_sd, buffer, sizeof(buffer), 0,
                         (struct sockaddr *)&their_addr, &addr_len);
 
-    if (num_bytes > 0) {
-        buffer[num_bytes] = '\0';
+    if (bytes_read > 0) {
+        buffer[bytes_read] = '\0';
         nack = strtok(buffer, "$");
         seqnumber_str = strtok(NULL, "$");
 
@@ -72,15 +72,18 @@ void sigpoll_handl_nack(int sig) {
 
             printf("NACK %d\n", seqnumber);
 
+            snprintf(message, sizeof(message), "%d$", seqnumber);
+
             int i;
+            int payload_curr = strlen(message);
+            int msg_len = strlen(message) + payload_sz;
             start = seqnumber * payload_sz;
             for (i = 0; i < payload_sz; i++) {
-                payload[i] = window[start + i];
+                message[payload_curr] = window[start + i];
+                payload_curr++;
             }
-            payload[i] = '\0';
 
-            snprintf(message, sizeof(message), "%d$%s", seqnumber, payload);
-            sendto(udp_sd, message, strlen(message), 0,
+            sendto(udp_sd, message, msg_len, 0,
                    (struct sockaddr *)&their_addr, addr_len);
         } else if (strcmp(nack, "DONE") == 0) {
             transmission_incomplete = 0;
@@ -130,20 +133,24 @@ int transfer_file(char * filepath, int numbytes, int sd,
     if (f_dwnld != NULL) {
         while((bytes_read = fread(buffer, 1, numbytes, f_dwnld)) > 0) {
             buffer[bytes_read] = '\0';
-
+            // create the message with sequence number and payload
+            snprintf(message, sizeof(message), "%d$", seqnumber, buffer);
             int i;
-            for (i = 0; i < strlen(buffer); i++) {
+            int curr_payload = strlen(message);
+            int msg_len = strlen(message) + bytes_read;
+            for (i = 0; i < bytes_read; i++) {
                 window[current] = buffer[i];
+                message[curr_payload] = buffer[i];
                 current++;
+                curr_payload++;
             }
 
-            // create the message with sequence number and payload
-            snprintf(message, sizeof(message), "%d$%s", seqnumber, buffer);
-            printf("Seqnumber: %d, payload_sz: %lu, message_sz: %lu\n", seqnumber, strlen(buffer), strlen(message));
+            printf("Seqnumber: %d, payload_sz: %d, message_sz: %d\n", seqnumber, bytes_read, msg_len);
 
             // change this call with the wrapper
-            dropsendto(sd, message, strlen(message), addr, addrsize, 10, 1);
+            dropsendto(sd, message, msg_len, addr, addrsize, 10, 1);
             seqnumber++;
+            //exit(0);
         }
 
         // signaling the end of the transmission

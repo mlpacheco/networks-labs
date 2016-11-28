@@ -90,8 +90,8 @@ int receive_file(char * filepath, int num_bytes, socklen_t addrlen) {
                 memcpy(seqnumber_str, &buffer[0], sep_pos);
                 seqnumber_str[sep_pos] = '\0';
                 // get payload after $
-                memcpy(payload, &buffer[sep_pos + 1], strlen(buffer) - (sep_pos + 1));
-                payload[strlen(buffer) - (sep_pos + 1)] = '\0';
+                memcpy(payload, &buffer[sep_pos + 1], bytes_read - (sep_pos + 1));
+                payload[bytes_read - (sep_pos + 1)] = '\0';
 
                 seqnumber = atoi(seqnumber_str);
                 printf("Received seqnumber %d\n", seqnumber);
@@ -112,12 +112,12 @@ int receive_file(char * filepath, int num_bytes, socklen_t addrlen) {
                     memset(received_packets, 0, received_packets_sz);
                 } else {
                     received_packets[seqnumber] = 1;
-                    printf("Payload size: %lu, bytes_read: %d\n", strlen(payload), bytes_read);
+                    printf("Payload size: %d, bytes_read: %d\n", bytes_read - (sep_pos + 1), bytes_read);
                     //fputs(payload, f_dwnld);
                     offset = payload_sz * seqnumber;
                     printf("offset: %d\n", offset);
                     int i;
-                    for (i = 0; i < strlen(payload); i++) {
+                    for (i = 0; i < bytes_read - (sep_pos + 1); i++) {
                         window[offset + i] = payload[i];
                     }
                     total_read += bytes_read;
@@ -142,9 +142,8 @@ int receive_file(char * filepath, int num_bytes, socklen_t addrlen) {
 
     // write to file
     printf("%s\n", filepath);
-    f_dwnld = fopen(filepath, "ab");
-    window[total_bytes] = '\0';
-    fputs( window, f_dwnld);
+    f_dwnld = fopen(filepath, "wb");
+    fwrite(window, 1, total_bytes, f_dwnld);
     fclose(f_dwnld);
 
     // calculate sececonds we took
