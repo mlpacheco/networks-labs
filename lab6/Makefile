@@ -1,7 +1,7 @@
 .PHONY: all clean
 
 CC = gcc
-OBJECTS = turboclient.o turboserver.o
+OBJECTS = turboclient.o turboserver.o overlayrouter.c overlaybuild.c
 LIB = -lm
 
 %.o: %.c
