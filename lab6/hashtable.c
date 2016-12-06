@@ -37,9 +37,10 @@ struct Item *search(unsigned char * key) {
 }
 
 void insert(char * key, char * data, int flag) {
-    struct Item *item = (struct Item*) malloc(sizeof(struct Item));
-    item->data = data;
-    item->key = key;
+    struct Item *item = (struct Item*)malloc(sizeof(item));
+
+    strcpy(item->data, data);
+    strcpy(item->key, key);
     item->flag = flag;
 
     //get the hash
@@ -61,14 +62,14 @@ void insert(char * key, char * data, int flag) {
 void display() {
     int i = 0;
     printf("Routing table\n");
-    printf("[src, dest, flag]\n");
+    //printf("[src, dest, flag]\n");
     for(i = 0; i<SIZE; i++) {
         if(hashTable[i] != NULL) {
-            printf("[%s, %s, %d]\n", hashTable[i]->key, hashTable[i]->data,
+            printf("[%s, %s, %d], ", hashTable[i]->key, hashTable[i]->data,
                    hashTable[i]->flag);
-        } /*else {
+        } else {
             printf(" ~~ ");
-        }*/
+        }
     }
     printf("\n");
 }

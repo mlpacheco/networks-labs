@@ -109,6 +109,7 @@ int make_hop(char * src_ip, int src_port, char * dest_ip, int port, char * messa
         snprintf(key, sizeof(key), "(%s,%d)", src_ip, src_port);
         snprintf(value, sizeof(value), "(%s,%d)", dest_ip, dest_port);
         insert(key, value, 0);
+        insert(value, key, 0);
         display();
     }
 
@@ -169,115 +170,126 @@ int main(int argc, char *argv[]) {
         // this is implemented to allow multiple clients to use this router
         if (n_bytes > 0) {
 
-            k = fork();
+            //k = fork();
 
-            if (k == 0) {
-                int count = 0;
-                buffer[n_bytes] = '\0';
+            //if (k == 0) {
+            int count = 0;
+            buffer[n_bytes] = '\0';
+            printf("%s\n", buffer);
+
+            // count separators to see what kind of message I am receiving
+            // 3 separators -> routing confirmation packet
+            // >= 4 separators -> routing build packet
+            // other -> unknown
+            int i;
+            for(i = 0; i < strlen(buffer); i++) {
+                if(buffer[i] == '$') {
+                    count++;
+                }
+            }
+
+            // building path
+            if (count >= 4) {
+                printf("Building path type of message\n");
+                char last_router[MAX_BUFF + 1];
+                char * ptr;
+                int beg_ip, src_port, my_port;
+                struct ifreq ifr;
+                char iface[] = "eth0";
+                char * localaddr;
+                char src_addr[MAX_BUFF + 1];
+
+                memcpy(src_addr, &inet_ntoa(addr_server.sin_addr)[0],
+                       strlen(inet_ntoa(addr_server.sin_addr)));
+                src_addr[strlen(inet_ntoa(addr_server.sin_addr))] = '\0';
+                src_port = ntohs(addr_server.sin_port);
+
+                printf("Received data from address %s through port %d\n", src_addr, src_port);
+
+                ifr.ifr_addr.sa_family = AF_INET;
+                strncpy(ifr.ifr_name , iface , IFNAMSIZ-1);
+                ioctl(sd_server, SIOCGIFADDR, &ifr);
+                localaddr = inet_ntoa(( (struct sockaddr_in *)&ifr.ifr_addr )->sin_addr);
+
+                printf("local address: %s\n", localaddr);
+
+                buffer[n_bytes - 1] = '\0';
                 printf("%s\n", buffer);
 
-                // count separators to see what kind of message I am receiving
-                // 3 separators -> routing confirmation packet
-                // >= 4 separators -> routing build packet
-                // other -> unknown
-                int i;
-                for(i = 0; i < strlen(buffer); i++) {
-                    if(buffer[i] == '$') {
-                        count++;
+                ptr = strrchr(buffer, '$');
+                beg_ip = ptr - buffer + 1;
+                printf("beg_ip: %d\n", beg_ip);
+
+                memcpy(last_router, &buffer[beg_ip], strlen(buffer) - beg_ip);
+                last_router[strlen(buffer) - beg_ip] = '\0';
+                printf("last_router=%s\n", last_router);
+
+                if (strcmp(last_router, localaddr) == 0) {
+
+                    // first I need to return the ACK
+                    num_clients++;
+                    my_port = port_server + num_clients;
+                    snprintf(message, sizeof(message), "%d", my_port);
+                    sendto(sd_server, message, strlen(message), 0,
+                           (struct sockaddr *)&addr_server, sizeof(addr_server));
+
+                    printf("ACK: %s\n", message);
+
+                    // now I need to forward to the next in line
+                    memcpy(message, &buffer[0], strlen(buffer) - strlen(last_router));
+                    message[strlen(buffer) - strlen(last_router)] = '\0';
+                    printf("message: %s, length: %lu\n", message, strlen(message));
+
+
+                    printf("count of $: %d\n", count);
+                    if (count == 4) {
+                        // i am the last router
+                        snprintf(message, sizeof(message), "$%s$%d$", localaddr, my_port);
+                        printf("I am the last router\n");
+                        printf("I will send message: %s to IP: %s\n", message, src_addr);
+                        confirm_hop(src_addr, port_server, message);
+                    } else {
+                        printf("I am an intermediate router\n");
+                        memcpy(buffer, &message[0], strlen(message));
+                        buffer[strlen(message) - 1] = '\0';
+                        ptr = strrchr(buffer, '$');
+                        beg_ip = ptr - buffer + 1;
+                        printf("beg_ip: %d\n", beg_ip);
+
+                        memcpy(last_router, &buffer[beg_ip], strlen(buffer) - beg_ip);
+                        last_router[strlen(buffer) - beg_ip] = '\0';
+                        printf("next_router=%s\n", last_router);
+
+                        make_hop(src_addr, src_port, last_router, port_server, message, my_port);
                     }
+
+                }
+            // confirmation message
+            } else if (count == 3) {
+                printf("I am receiving a hop back message\n");
+                char * router_ip;
+                char * router_data_port;
+                char key[MAX_BUFF + 1];
+                char value[MAX_BUFF + 1];
+
+                router_ip = strtok(buffer, "$");
+                router_data_port = strtok(NULL, "$");
+                snprintf(key, sizeof(key), "(%s,%s)", router_ip, router_data_port);
+
+                struct Item* item1 = search(key);
+                item1->flag = 1;
+                struct Item * item2 = search(item1->data);
+                if (strcmp(item2->data, key) == 0) {
+                    item2->flag = 1;
                 }
 
-                // building path
-                if (count >= 4) {
-                    printf("Building path type of message\n");
-                    char last_router[MAX_BUFF + 1];
-                    char * ptr;
-                    int beg_ip, src_port, my_port;
-                    struct ifreq ifr;
-                    char iface[] = "eth0";
-                    char * localaddr;
-                    char src_addr[MAX_BUFF + 1];
+                printf("Table after confirmation\n");
+                display();
 
-                    memcpy(src_addr, &inet_ntoa(addr_server.sin_addr)[0],
-                           strlen(inet_ntoa(addr_server.sin_addr)));
-                    src_addr[strlen(inet_ntoa(addr_server.sin_addr))] = '\0';
-                    src_port = ntohs(addr_server.sin_port);
-
-                    printf("Received data from address %s through port %d\n", src_addr, src_port);
-
-                    ifr.ifr_addr.sa_family = AF_INET;
-                    strncpy(ifr.ifr_name , iface , IFNAMSIZ-1);
-                    ioctl(sd_server, SIOCGIFADDR, &ifr);
-                    localaddr = inet_ntoa(( (struct sockaddr_in *)&ifr.ifr_addr )->sin_addr);
-
-                    printf("local address: %s\n", localaddr);
-
-                    buffer[n_bytes - 1] = '\0';
-                    printf("%s\n", buffer);
-
-                    ptr = strrchr(buffer, '$');
-                    beg_ip = ptr - buffer + 1;
-                    printf("beg_ip: %d\n", beg_ip);
-
-                    memcpy(last_router, &buffer[beg_ip], strlen(buffer) - beg_ip);
-                    last_router[strlen(buffer) - beg_ip] = '\0';
-                    printf("last_router=%s\n", last_router);
-
-                    if (strcmp(last_router, localaddr) == 0) {
-
-                        // first I need to return the ACK
-                        num_clients++;
-                        my_port = port_server + num_clients;
-                        snprintf(message, sizeof(message), "%d", my_port);
-                        sendto(sd_server, message, strlen(message), 0,
-                               (struct sockaddr *)&addr_server, sizeof(addr_server));
-
-                        printf("ACK: %s\n", message);
-
-                        // now I need to forward to the next in line
-                        memcpy(message, &buffer[0], strlen(buffer) - strlen(last_router));
-                        message[strlen(buffer) - strlen(last_router)] = '\0';
-                        printf("message: %s, length: %lu\n", message, strlen(message));
-
-
-                        printf("count of $: %d\n", count);
-                        if (count == 4) {
-                            // i am the last router
-                            snprintf(message, sizeof(message), "$%s$%d$", localaddr, my_port);
-                            printf("I am the last router\n");
-                            printf("I will send message: %s to IP: %s\n", message, src_addr);
-                            confirm_hop(src_addr, port_server, message);
-                        } else {
-                            printf("I am an intermediate router\n");
-                            memcpy(buffer, &message[0], strlen(message));
-                            buffer[strlen(message) - 1] = '\0';
-                            ptr = strrchr(buffer, '$');
-                            beg_ip = ptr - buffer + 1;
-                            printf("beg_ip: %d\n", beg_ip);
-
-                            memcpy(last_router, &buffer[beg_ip], strlen(buffer) - beg_ip);
-                            last_router[strlen(buffer) - beg_ip] = '\0';
-                            printf("next_router=%s\n", last_router);
-
-                            make_hop(src_addr, src_port, last_router, port_server, message, my_port);
-                        }
-
-                    }
-                // confirmation message
-                } else if (count == 3) {
-                    printf("I am receiving a hop back message\n");
-                    char * router_ip;
-                    char * router_data_port;
-
-                    router_ip = strtok(buffer, "$");
-                    router_data_port = strtok(buffer, "$");
-
-                    printf("Checking if I can display this here\n");
-                    display();
-                }
-
-                exit(0);
             }
+
+                //exit(0);
+            //}
         }
 
     }

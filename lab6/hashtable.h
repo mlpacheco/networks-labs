@@ -4,8 +4,8 @@
 #define SIZE 50
 
 struct Item {
-    char * data;
-    char * key;
+    char data[500];
+    char key[500];
     int flag;
 };
 
