@@ -61,15 +61,15 @@ void insert(char * key, char * data, int flag) {
 
 void display() {
     int i = 0;
-    printf("Routing table\n");
-    //printf("[src, dest, flag]\n");
+    //printf("Routing table\n");
+    printf("[src, dest, flag]\n");
     for(i = 0; i<SIZE; i++) {
         if(hashTable[i] != NULL) {
-            printf("[%s, %s, %d], ", hashTable[i]->key, hashTable[i]->data,
+            printf("[%s, %s, %d]\n", hashTable[i]->key, hashTable[i]->data,
                    hashTable[i]->flag);
-        } else {
+        } /*else {
             printf(" ~~ ");
-        }
+        }*/
     }
     printf("\n");
 }

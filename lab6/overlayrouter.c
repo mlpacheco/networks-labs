@@ -34,7 +34,7 @@ int confirm_entry(char * router_ip, char * router_data_port) {
     item1->flag = 1;
     item2 = search(item1->data);
     if (strcmp(item2->data, key) == 0) {
-    item2->flag = 1;
+        item2->flag = 1;
     }
 
     printf("Table after confirmation\n");
@@ -58,7 +58,7 @@ int add_entry(char * src_ip, int src_port, char * dest_ip, int dest_port) {
 int confirm_hop(char * src_ip, int port, char * localaddr, int my_port) {
     char message[MAX_BUFF + 1];
     snprintf(message, sizeof(message), "$%s$%d$", localaddr, my_port);
-    printf("I am entering the function to send confirm hop\n");
+    //printf("I am entering the function to send confirm hop\n");
     int sd_back_hop, n_bytes;
     struct sockaddr_in back_hop;
     struct in_addr host_addr;
@@ -132,14 +132,14 @@ int make_hop(char * dest_ip, int port, char * message, int my_port) {
     n_bytes = sendto(sd_hop, message, strlen(message), 0, (struct sockaddr *) &addr_hop,
                      sizeof(addr_hop));
 
-    printf("Sent %s\n", message);
+    //printf("Sent %s\n", message);
     n_bytes = recvfrom(sd_hop, buffer, sizeof(buffer), 0,
                        (struct sockaddr *) &addr_hop, &addrsize);
 
     // add entry to database
     if (n_bytes > 0) {
         buffer[n_bytes] = '\0';
-        printf("Received ACK: %s\n", buffer);
+        //printf("Received ACK: %s\n", buffer);
         dest_port = atoi(buffer);
         return dest_port;
     }
@@ -219,16 +219,14 @@ int main(int argc, char *argv[]) {
         n_bytes = recvfrom(sd_server, buffer, sizeof(buffer), 0,
                           (struct sockaddr *) &addr_server, &addrsize);
 
-        printf("Received %d bytes\n", n_bytes);
-        // fork a process to deal with this client
-        // this is implemented to allow multiple clients to use this router
+        //printf("Received %d bytes\n", n_bytes);
         if (n_bytes <= 0) {
             continue;
         }
 
         count = 0;
         buffer[n_bytes] = '\0';
-        printf("%s\n", buffer);
+        //printf("%s\n", buffer);
 
         // count separators to see what kind of message I am receiving
         // >= 4 separators -> routing build packet
@@ -251,20 +249,20 @@ int main(int argc, char *argv[]) {
         ioctl(sd_server, SIOCGIFADDR, &ifr);
         localaddr = inet_ntoa(( (struct sockaddr_in *)&ifr.ifr_addr )->sin_addr);
 
-        printf("Received data from address %s through port %d\n", src_addr, src_port);
-        printf("local address: %s\n", localaddr);
+        //printf("Received data from address %s through port %d\n", src_addr, src_port);
+        //printf("local address: %s\n", localaddr);
 
         buffer[n_bytes - 1] = '\0';
-        printf("%s\n", buffer);
+        //printf("%s\n", buffer);
 
         ptr = strrchr(buffer, '$');
         beg_ip = ptr - buffer + 1;
-        printf("beg_ip: %d\n", beg_ip);
+        //printf("beg_ip: %d\n", beg_ip);
 
         memcpy(last_router, &buffer[beg_ip], strlen(buffer) - beg_ip);
         last_router[strlen(buffer) - beg_ip] = '\0';
-        printf("last_router=%s\n", last_router);
-        printf("localaddr=%s\n", localaddr);
+        //printf("last_router=%s\n", last_router);
+        //printf("localaddr=%s\n", localaddr);
         if (strcmp(last_router, localaddr) != 0) {
             continue;
         }
@@ -277,12 +275,12 @@ int main(int argc, char *argv[]) {
         sendto(sd_server, message, strlen(message), 0,
                (struct sockaddr *)&addr_server, sizeof(addr_server));
 
-        printf("ACK: %s\n", message);
+        //printf("ACK: %s\n", message);
 
         // now I need to forward to the next in line
         memcpy(message, &buffer[0], strlen(buffer) - strlen(last_router));
         message[strlen(buffer) - strlen(last_router)] = '\0';
-        printf("message: %s, length: %lu\n", message, strlen(message));
+        //printf("message: %s, length: %lu\n", message, strlen(message));
 
         if (count == 4) {
             // i am the last router
@@ -293,21 +291,21 @@ int main(int argc, char *argv[]) {
             confirm_hop(src_addr, port_server, localaddr, my_port);
             // add entry to routing table
             add_entry(src_addr, src_port,  dest_ip, atoi(dest_port));
+            confirm_entry(dest_ip, dest_port);
         } else {
             printf("I am an intermediate router\n");
             memcpy(buffer, &message[0], strlen(message));
             buffer[strlen(message) - 1] = '\0';
             ptr = strrchr(buffer, '$');
             beg_ip = ptr - buffer + 1;
-            printf("beg_ip: %d\n", beg_ip);
+            //printf("beg_ip: %d\n", beg_ip);
 
             memcpy(last_router, &buffer[beg_ip], strlen(buffer) - beg_ip);
             last_router[strlen(buffer) - beg_ip] = '\0';
-            printf("next_router=%s\n", last_router);
+            //printf("next_router=%s\n", last_router);
 
             int dest_port = make_hop(last_router, port_server, message, my_port);
-
-            printf("dest_port: %d\n", dest_port);
+            //printf("dest_port: %d\n", dest_port);
 
             // didn't get a valid ACK
             if (dest_port == -1) {
@@ -336,7 +334,7 @@ int main(int argc, char *argv[]) {
             // disable alarm once we have gotten the confirmation
             //alarm(0);
 
-            printf("I am receiving a hop back message\n");
+            //printf("I am receiving a hop back message\n");
 
             router_ip = strtok(buffer, "$");
             router_data_port = strtok(NULL, "$");
