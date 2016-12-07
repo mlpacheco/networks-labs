@@ -32,7 +32,7 @@ void alarm_sig_handler(int signum) {
     erase_entry = 1;
 }
 
-int confirm_entry(char * router_ip, char * router_data_port) {
+int confirm_entry(char * router_ip, char * router_data_port, char * localaddr) {
     char key[MAX_BUFF + 1];
     struct Item* item1;
     struct Item* item2;
@@ -45,11 +45,14 @@ int confirm_entry(char * router_ip, char * router_data_port) {
         item2->flag = 1;
     }
 
-    printf("Table after confirmation\n");
+    printf("Table after confirmation for IP %s\n", localaddr);
+    time_t ltime;
+    ltime=time(NULL);
+    printf("%s",asctime( localtime(&ltime) ) );
     display();
 }
 
-int add_entry(char * src_ip, int src_port, char * dest_ip, int dest_port) {
+int add_entry(char * src_ip, int src_port, char * dest_ip, int dest_port, char * localaddr) {
     char key[MAX_BUFF + 1];
     char value[MAX_BUFF + 1];
 
@@ -58,7 +61,10 @@ int add_entry(char * src_ip, int src_port, char * dest_ip, int dest_port) {
     insert(key, value, 0);
     insert(value, key, 0);
 
-    printf("Routing table update\n");
+    printf("Routing table update for IP %s\n", localaddr);
+    time_t ltime;
+    ltime=time(NULL);
+    printf("%s",asctime( localtime(&ltime) ) );
     display();
 
 }
@@ -214,29 +220,29 @@ int routing(int my_port) {
     }
 
     do {
-        printf("Listening on port %d\n", my_port);
+        //printf("Listening on port %d\n", my_port);
         // listen to src
         n_bytes = recvfrom(sd_src, buffer, sizeof(buffer), 0,
                     (struct sockaddr *) &addr_src, &addrsize);
-        printf("Received %d bytes\n", n_bytes);
+        //printf("Received %d bytes\n", n_bytes);
 
         if (n_bytes > 0) {
             buffer[n_bytes] = '\0';
-            printf("Received %s\n", buffer);
+            //printf("Received %s\n", buffer);
             // get info from source to look up in routing table
             src_ip = inet_ntoa(addr_src.sin_addr);
             src_port = ntohs(addr_src.sin_port);
             snprintf(key, sizeof(key), "(%s,%d)", src_ip, src_port);
-            printf("key: %s\n", key);
+            //printf("key: %s\n", key);
             item = search(key);
-            printf("item->data : %s\n", item->data);
+            //printf("item->data : %s\n", item->data);
             comma_pos = strcspn(item->data, ",");
             memcpy(dest_ip, &item->data[1], comma_pos - 1);
             dest_ip[comma_pos - 1] = '\0';
-            printf("length: %lu\n", strlen(item->data) - comma_pos - 2);
+            //printf("length: %lu\n", strlen(item->data) - comma_pos - 2);
             memcpy(dest_port_str, &item->data[comma_pos + 1], strlen(item->data) - comma_pos - 2);
             dest_port_str[strlen(item->data) - comma_pos - 2] = '\0';
-            printf("dest_ip: %s, dest_port: %s\n", dest_ip, dest_port_str);
+            //printf("dest_ip: %s, dest_port: %s\n", dest_ip, dest_port_str);
             dest_port = atoi(dest_port_str);
 
             // set destination info
@@ -404,8 +410,8 @@ int main(int argc, char *argv[]) {
             char * dest_port = strtok(NULL, "$");
             confirm_hop(src_addr, port_server, localaddr, my_port);
             // add entry to routing table
-            add_entry(src_addr, src_port,  dest_ip, atoi(dest_port));
-            confirm_entry(dest_ip, dest_port);
+            add_entry(src_addr, src_port,  dest_ip, atoi(dest_port), localaddr);
+            confirm_entry(dest_ip, dest_port, localaddr);
         } else {
             printf("I am an intermediate router\n");
             memcpy(buffer, &message[0], strlen(message));
@@ -427,7 +433,7 @@ int main(int argc, char *argv[]) {
             }
 
             // add entry to routing table
-            add_entry(src_addr, src_port, last_router, dest_port);
+            add_entry(src_addr, src_port, last_router, dest_port, localaddr);
 
             // get confirmation message
             // set alarm to delete router table entry if not confirmed
@@ -453,7 +459,7 @@ int main(int argc, char *argv[]) {
             router_ip = strtok(buffer, "$");
             router_data_port = strtok(NULL, "$");
 
-            confirm_entry(router_ip, router_data_port);
+            confirm_entry(router_ip, router_data_port, localaddr);
 
             // confirm back
             confirm_hop(src_addr, port_server, localaddr, my_port);
