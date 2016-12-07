@@ -166,8 +166,7 @@ int count_separators(char * buffer) {
 // building on the tunnel function created in lab4
 int routing(int my_port) {
     int sd_src, sd_dest, n_bytes, src_port, dest_port, comma_pos;
-    struct sockaddr_in addr_src;
-    struct sockaddr_in addr_dest;
+    struct sockaddr_in addr_src, addr_dest, my_addr;
     struct in_addr host_addr;
     struct hostent *ipv4address;
     char buffer[MAX_BUFF + 1];
@@ -184,6 +183,12 @@ int routing(int my_port) {
     addr_src.sin_family = AF_INET;
     addr_src.sin_addr.s_addr = htonl(INADDR_ANY);
     addr_src.sin_port = htons(my_port);
+
+    // set my info
+    memset(&my_addr, 0, sizeof(my_addr));
+    my_addr.sin_family = AF_INET;
+    my_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    my_addr.sin_port = htons(my_port);
 
     if ((sd_src = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
         perror("socket error");
@@ -206,14 +211,20 @@ int routing(int my_port) {
 
         if (n_bytes > 0) {
             buffer[n_bytes] = '\0';
+            printf("Received %s\n", buffer);
             // get info from source to look up in routing table
             src_ip = inet_ntoa(addr_src.sin_addr);
             src_port = ntohs(addr_src.sin_port);
             snprintf(key, sizeof(key), "(%s,%d)", src_ip, src_port);
+            printf("key: %s\n", key);
             item = search(key);
+            printf("item->data : %s\n", item->data);
             comma_pos = strcspn(item->data, ",");
-            memcpy(dest_ip, &item->data[1], comma_pos);
+            memcpy(dest_ip, &item->data[1], comma_pos - 1);
+            dest_ip[comma_pos - 1] = '\0';
+            printf("length: %lu\n", strlen(item->data) - comma_pos - 2);
             memcpy(dest_port_str, &item->data[comma_pos + 1], strlen(item->data) - comma_pos - 2);
+            dest_port_str[strlen(item->data) - comma_pos - 2] = '\0';
             printf("dest_ip: %s, dest_port: %s\n", dest_ip, dest_port_str);
             dest_port = atoi(dest_port_str);
 
@@ -229,6 +240,15 @@ int routing(int my_port) {
 
             if ((sd_dest = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
                 perror("socket error");
+                return -1;
+            }
+
+            int optval = 1;
+            setsockopt(sd_dest, SOL_SOCKET, SO_REUSEPORT, &optval, sizeof(optval));
+
+            /// force source port to be the specified one
+            if (bind(sd_dest, (struct sockaddr *) &my_addr, sizeof(my_addr)) < 0) {
+                perror("bind error");
                 return -1;
             }
 
@@ -423,12 +443,14 @@ int main(int argc, char *argv[]) {
             // confirm back
             confirm_hop(src_addr, port_server, localaddr, my_port);
 
-            k = fork();
 
-            if (k == 0) {
-                routing(my_port);
-            }
+        }
 
+        k = fork();
+
+        if (k == 0) {
+            routing(my_port);
+            exit(0);
         }
 
      }
