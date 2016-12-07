@@ -3,7 +3,7 @@
 CC = gcc
 HT_OBJECT = hashtable.o
 OR_OBJECT = overlayrouter.o
-OBJECTS = overlaybuild.o turboclient.o turboserver.o
+OBJECTS = overlaybuild.o turboclient.o turboserver.o myping.o traffic_snd.o
 HEADERS = hashtable.h
 CFLAGS = -lm
 
