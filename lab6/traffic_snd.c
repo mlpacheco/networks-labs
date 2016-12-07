@@ -25,7 +25,7 @@ int main(int argc, char *argv[]) {
     int port, sd, payload_size, n_packets, len, bytes_sent, my_port;
     struct hostent *ipv4address;
     struct in_addr host_addr;
-    struct sockaddr_in server_addr;
+    struct sockaddr_in server_addr, my_addr;
     struct timeval start_time, end_time;
     double interval, start_sec, end_sec, elapsed_sec;
 
@@ -34,6 +34,7 @@ int main(int argc, char *argv[]) {
     payload_size = atoi(argv[3]);
     n_packets = atoi(argv[4]);
     interval = atof(argv[5]);
+    my_port = atoi(argv[6]);
 
     // the message of the size of the payload
     char msg[payload_size + 1];
@@ -57,6 +58,17 @@ int main(int argc, char *argv[]) {
     server_addr.sin_family = AF_INET;
     bcopy(ipv4address->h_addr, &(server_addr.sin_addr.s_addr), ipv4address->h_length);
     server_addr.sin_port = htons(port);
+
+    // set my info
+    memset(&my_addr, 0, sizeof(my_addr));
+    my_addr.sin_family = AF_INET;
+    my_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    my_addr.sin_port = htons(my_port);
+
+    // force source port to be the specified one
+    if (bind(sd, (struct sockaddr *) &my_addr, sizeof(my_addr)) < 0) {
+        perror("bind error");
+    }
 
     // create payload
     while((strlen(msg)) < payload_size) {
