@@ -8,6 +8,7 @@
 #include <net/if.h>
 #include <sys/ioctl.h>
 #include <netdb.h>
+#include <time.h>
 #include "hashtable.h"
 
 #define MAX_BUFF 2000
@@ -18,6 +19,13 @@ volatile sig_atomic_t erase_entry = 0;
 void child_sig_handler(int signum) {
     int status;
     wait(&status);
+}
+
+int random_number() {
+    srand(time(NULL) + getpid());
+    int randomnumber;
+    randomnumber = rand() % 10;
+    return randomnumber;
 }
 
 void alarm_sig_handler(int signum) {
@@ -178,17 +186,18 @@ int routing(int my_port) {
 
     socklen_t addrsize = sizeof(addr_src);
 
-    // set info needed to listen to src
-    memset(&addr_src, 0, sizeof(addr_src));
-    addr_src.sin_family = AF_INET;
-    addr_src.sin_addr.s_addr = htonl(INADDR_ANY);
-    addr_src.sin_port = htons(my_port);
 
     // set my info
     memset(&my_addr, 0, sizeof(my_addr));
     my_addr.sin_family = AF_INET;
     my_addr.sin_addr.s_addr = htonl(INADDR_ANY);
     my_addr.sin_port = htons(my_port);
+
+    // set info needed to listen to src
+    memset(&addr_src, 0, sizeof(addr_src));
+    addr_src.sin_family = AF_INET;
+    addr_src.sin_addr.s_addr = htonl(INADDR_ANY);
+    addr_src.sin_port = htons(my_port);
 
     if ((sd_src = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
         perror("socket error");
@@ -205,9 +214,11 @@ int routing(int my_port) {
     }
 
     do {
+        printf("Listening on port %d\n", my_port);
         // listen to src
         n_bytes = recvfrom(sd_src, buffer, sizeof(buffer), 0,
                     (struct sockaddr *) &addr_src, &addrsize);
+        printf("Received %d bytes\n", n_bytes);
 
         if (n_bytes > 0) {
             buffer[n_bytes] = '\0';
@@ -252,8 +263,11 @@ int routing(int my_port) {
                 return -1;
             }
 
-            sendto(sd_dest, buffer, strlen(buffer), 0,
+            int n_b = sendto(sd_dest, buffer, strlen(buffer), 0,
                 (struct sockaddr *)&addr_dest, sizeof(addr_dest));
+            printf("Sent %d bytes\n", n_b);
+
+            close(sd_dest);
         }
 
     } while(n_bytes > 0);
@@ -368,6 +382,7 @@ int main(int argc, char *argv[]) {
 
 
         // first I need to return the ACK
+        //num_clients += random_number();
         num_clients++;
         my_port = port_server + num_clients;
         snprintf(message, sizeof(message), "%d", my_port);
