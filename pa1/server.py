@@ -36,8 +36,10 @@ def main():
 
     # input data needed
     port = int(sys.argv[1])
-    #host = socket.gethostname()
-    host = '127.0.0.1'
+    host = socket.gethostname()
+    # line below is here to test on my personal laptop
+    # with no resolvable hostname
+    #host = '127.0.0.1'
 
     # create and bind socket
     sd = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
