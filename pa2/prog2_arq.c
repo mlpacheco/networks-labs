@@ -95,6 +95,7 @@ A_output(message)
 
     // send packet to layer3 and update last sent seqnum var
     printf("[A_output] sending message through layer3 with sequence number %d\n", mypktptr->seqnum);
+    starttimer(0, 20.0);
     tolayer3(0, *mypktptr);
     last_seqnum_sent = mypktptr->seqnum;
 }
@@ -114,6 +115,7 @@ A_input(packet)
     int i;
     int resend;
 
+    stoptimer(0);
     printf("[A_input] received ACK/NACK packet\n");
     resend = 0;
 
@@ -133,6 +135,7 @@ A_input(packet)
           printf("[A_input] received packet is ACK\n");
     }
 
+
     // resend message if nack'd or ack packet corrupted
     // the buffer contains the last message sent
     if (resend) {
@@ -144,6 +147,7 @@ A_input(packet)
         checksum = build_checksum(*mypktptr);
         mypktptr->checksum = checksum;
         printf("[A_input] resending last message with seqnumber %d through layer3\n", last_seqnum_sent);
+        starttimer(0, 20.0);
         tolayer3(0, *mypktptr);
     }
 }
@@ -151,7 +155,23 @@ A_input(packet)
 /* called when A's timer goes off */
 A_timerinterrupt()
 {
+    // when timer goes off, we want to resend message
+    int i;
+    struct pkt *mypktptr;
+    int checksum;
+    printf("[A_timerinterrupt] timer has gone off\n");
 
+    mypktptr = (struct pkt *)malloc(sizeof(struct pkt));
+    mypktptr->seqnum = last_seqnum_sent;
+    for (i = 0; i < 20; i++) {
+        mypktptr->payload[i] = buffer[i];
+    }
+    checksum = build_checksum(*mypktptr);
+    mypktptr->checksum = checksum;
+    printf("[A_timerinterrupt] resending last message with seqnumber %d through layer3\n", last_seqnum_sent);
+
+    starttimer(0, 20.0);
+    tolayer3(0, *mypktptr);
 }
 
 /* the following routine will be called once (only) before any other */

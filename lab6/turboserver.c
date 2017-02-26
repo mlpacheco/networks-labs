@@ -6,14 +6,14 @@
 #include <stdlib.h>
 #include <string.h>
 #include <fcntl.h>
+#include <arpa/inet.h>
+#include "dropsendto.h"
 
 #define MAX_BUFF 10000
 
 // keep variables we need to access in signal
 int udp_sd, window_sz, payload_sz;
 char * window;
-int counter_tot = 1;
-int counter_loss = 1;
 
 volatile sig_atomic_t transmission_incomplete = 1;
 
@@ -24,29 +24,6 @@ void childsig_handler(int signum) {
     wait(&status);
 }
 
-int dropsendto(int sd, const char * message, int size,
-               const struct sockaddr * addr, int addr_size, int totalnum,
-               int lossnum) {
-    //printf("counter_tot: %d, counter_loss: %d, totalnum: %d, lossnum: %d\n", counter_tot, counter_loss, totalnum, lossnum);
-    if (counter_tot == totalnum && counter_loss < lossnum) {
-        // ignore and don't send
-        counter_loss++;
-        printf("dropping packet\n");
-    } else if (counter_tot == totalnum && counter_loss == lossnum) {
-        // ignore and don't send
-        counter_loss = 1;
-        counter_tot = 1;
-        printf("dropping packet\n");
-    } else {
-        // send packet
-        int ret = sendto(sd, message, size, 0, addr, addr_size);
-        printf("sent %d bytes\n", ret);
-        counter_tot++;
-        return ret;
-    }
-
-    return -1;
-}
 
 void sigpoll_handl_nack(int sig) {
     printf("sigpoll handler\n");
@@ -221,13 +198,21 @@ int main(int argc, char *argv[]) {
     sigchld_action.sa_handler = &childsig_handler;
     sigaction (SIGCHLD, &sigchld_action, NULL);
 
+
     // start listening
     listen(tcp_sd, 5);
 
     // accept connections from clients constantly
     int client_count = 1;
     while(1) {
-        conn = accept(tcp_sd, 0, 0);
+        struct sockaddr_in client_addr;
+        socklen_t clilen = sizeof(client_addr);
+        struct in_addr host_addr;
+        struct hostent *ipv4address;
+
+        conn = accept(tcp_sd, (struct sockaddr *) &client_addr, &clilen);
+        char * client_ip = inet_ntoa(client_addr.sin_addr);
+
         k = fork();
 
         // child process to manage file transfer
@@ -266,9 +251,11 @@ int main(int argc, char *argv[]) {
                 socklen_t addrsize = sizeof(addr_udp);
 
                 // set UDP info
+                inet_pton(AF_INET, client_ip, &host_addr);
+                ipv4address = gethostbyaddr(&host_addr, sizeof host_addr, AF_INET);
                 memset(&addr_udp, 0, sizeof(addr_udp));
                 addr_udp.sin_family = AF_INET;
-                addr_udp.sin_addr.s_addr = htonl(INADDR_ANY);
+                bcopy(ipv4address->h_addr, &(addr_udp.sin_addr.s_addr), ipv4address->h_length);
                 addr_udp.sin_port = htons(udp_port);
 
                 // create UDP socket
