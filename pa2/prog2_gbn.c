@@ -182,7 +182,7 @@ A_init()
     last_seqnum_sent = -1;
     last_ack_received = -1;
     // what size do we want the window to be?
-    window_size = 5;
+    window_size = 20;
 }
 
 
