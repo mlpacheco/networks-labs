@@ -199,33 +199,27 @@ B_input(packet)
     struct pkt *mypktptr;
 
     printf("[B_input] received packet through layer3\n");
-    mypktptr = (struct pkt *)malloc(sizeof(struct pkt));
 
-    if (!is_corrupted(packet)) {
-        // Only send message to layer5 if it hasn't been sent already
-        if (packet.seqnum != last_seqnum_received) {
-            // build message
-            message = (struct msg *)malloc(sizeof(struct msg));
-            for(i = 0; i < 20; i++)
-                message->data[i] = packet.payload[i];
-            printf("[B_input] sending message through layer5\n");
-            // send the message to layer5 and update last seqnumber received
-            tolayer5(1, *message);
-            last_seqnum_received = packet.seqnum;
-        }
-
-        // create and send ACK packet
-        mypktptr->acknum = packet.seqnum;
-        printf("[B_input] sending ACK through layer3\n");
-
-    } else {
-        // if the message was corrupted build NACK packet
-        printf("[B_input] packet was corrupted\n");
-        mypktptr->acknum = last_seqnum_received;
-        printf("[B_input] sending NACK through layer3\n");
+    // if received message is not corrupted and it is next expected packet
+    if (!is_corrupted(packet) && packet.seqnum == last_seqnum_received + 1) {
+        // build message
+        message = (struct msg *)malloc(sizeof(struct msg));
+        for(i = 0; i < 20; i++)
+            message->data[i] = packet.payload[i];
+        printf("[B_input] sending message through layer5\n");
+        // send the message to layer5 and update last seqnumber received
+        tolayer5(1, *message);
+        last_seqnum_received = packet.seqnum;
+    } else if (is_corrupted(packet)) {
+        printf("[B_input] received packet is corrupted\n");
+    } else if (packet.seqnum != last_seqnum_received + 1) {
+        printf("[B-input] received packet is out-of-order\n");
     }
 
-    // send ACK/NACK packet
+    // create and send ACK packet for last seqnum received (in order)
+    mypktptr = (struct pkt *)malloc(sizeof(struct pkt));
+    mypktptr->acknum = last_seqnum_received;
+    printf("[B_input] sending ACK for sequence num %d through layer3\n", last_seqnum_received);
     checksum = build_checksum(*mypktptr);
     mypktptr->checksum = checksum;
     tolayer3(1, *mypktptr);
@@ -241,7 +235,7 @@ B_timerinterrupt()
 B_init()
 {
     printf("[B_init] init\n");
-    last_seqnum_received = 0;
+    last_seqnum_received = -1;
 }
 
 
