@@ -124,7 +124,6 @@ A_input(packet)
     int checksum;
     int i;
 
-    stoptimer(0);
     printf("[A_input] received ACK packet\n");
 
     if (is_corrupted(packet)) {
@@ -180,8 +179,8 @@ A_timerinterrupt()
 A_init()
 {
     printf("[A_init] init\n");
-    last_seqnum_sent = 0;
-    last_ack_received = 0;
+    last_seqnum_sent = -1;
+    last_ack_received = -1;
     // what size do we want the window to be?
     window_size = 5;
 }
