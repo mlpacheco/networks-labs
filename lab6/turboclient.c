@@ -74,7 +74,7 @@ int receive_file(char * filepath, int num_bytes, socklen_t addrlen) {
     prev_seqnumber = -1;
 
     // set alarm to check not received packets
-    ualarm(1000, 1000);
+    //ualarm(1000, 1000);
 
     int all = 0;
     while (all == 0) {
@@ -133,7 +133,7 @@ int receive_file(char * filepath, int num_bytes, socklen_t addrlen) {
     }
 
     // unset alarm and send a message to signal the end
-    ualarm(0,0);
+    //ualarm(0,0);
     sendto(udp_sd, "DONE", 4, 0, (struct sockaddr *)&server_addr_udp,
            sizeof server_addr_udp);
     printf("Sent done\n");
@@ -241,11 +241,11 @@ int main(int argc, char *argv[]) {
         // set server info
         memset(&server_addr_udp, 0, sizeof(server_addr_udp));
         server_addr_udp.sin_family = AF_INET;
-        bcopy(ipv4address->h_addr, &(server_addr_udp.sin_addr.s_addr),
-              ipv4address->h_length);
+        server_addr_udp.sin_addr.s_addr = htonl(INADDR_ANY);
         server_addr_udp.sin_port = htons(udp_port);
-
+        printf("port: %d\n", udp_port);
         // create UDP socket
+
         if ((udp_sd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0) {
             perror("socket error");
             return -1;

@@ -34,41 +34,155 @@ struct pkt {
    char payload[20];
     };
 
+// variables accessed from sender side
+static char buffer[50*20];
+static int buffer_size = 50;
+static int buffer_free_slots = 50;
+static int last_seqnum_sent;
+static int last_ack_received;
+static int window_size;
+
+// variables accessed from receiver side
+static int last_seqnum_received;
+
 /********* STUDENTS WRITE THE NEXT SEVEN ROUTINES *********/
 
+int is_corrupted(struct pkt packet) {
+    int i;
+    int checksum = 0;
+    checksum += packet.seqnum + packet.acknum;
+    for (i = 0; i < 20; i++) {
+        checksum += packet.payload[i];
+    }
+    return (checksum != packet.checksum);
+}
 
+int build_checksum(struct pkt packet) {
+    int i;
+    int checksum = 0;
+    checksum += packet.seqnum + packet.acknum;
+    for (i = 0; i < 20; i++) {
+        checksum += packet.payload[i];
+    }
+    return checksum;
+}
 
 
 /* called from layer 5, passed the data to be sent to other side */
 A_output(message)
   struct msg message;
 {
+    struct pkt *mypktptr;
+    int i;
+    int checksum;
 
+    printf("[A_output] received message from layer5\n");
+    if (last_seqnum_sent - last_ack_received >= window_size) {
+        // ignore new incoming messages
+        printf("[A_output] ignoring message from layer5 because window is full\n");
+        return 0;
+    } else if (buffer_free_slots == 0) {
+        printf("[A_output] ignoring message from layer5 because buffers are full\n");
+    }
+
+    mypktptr = (struct pkt *)malloc(sizeof(struct pkt));
+    mypktptr->seqnum = last_seqnum_sent + 1;
+
+    for (i = 0; i < 20; i++) {
+        mypktptr->payload[i] = message.data[i];
+        // keep last sent message in buffer
+        buffer[(mypktptr->seqnum + i) % buffer_size] = mypktptr->payload[i];
+    }
+    buffer_free_slots--;
+
+    checksum = build_checksum(*mypktptr);
+    mypktptr->checksum = checksum;
+
+    // send packet to layer3 and update last sent seqnum var
+    printf("[A_output] sending message through layer3 with sequence number %d\n", mypktptr->seqnum);
+
+    // we only want to start timer for new sent messages when there are
+    // no unacked messages in the buffer
+    if (last_seqnum_sent == last_ack_received)
+        starttimer(0, 20.0);
+
+    tolayer3(0, *mypktptr);
+    last_seqnum_sent = mypktptr->seqnum;
 }
 
 B_output(message)  /* need be completed only for extra credit */
   struct msg message;
 {
-
 }
 
 /* called from layer 3, when a packet arrives for layer 4 */
 A_input(packet)
   struct pkt packet;
 {
+    // check ACK packet
+    struct pkt *mypktptr;
+    int checksum;
+    int i;
 
+    printf("[A_input] received ACK packet\n");
+
+    if (is_corrupted(packet)) {
+        // do nothing because packet is corrupted, will let timer handle this
+        printf("[A_input] received ACK packet was corrupted\n");
+    } else {
+        // free the buffer slots that have been acked
+        buffer_free_slots += packet.acknum - last_ack_received;
+        // update last ack received
+        last_ack_received = packet.acknum;
+        printf("[A_input] received ACK packet for seqnumber %d\n", last_ack_received);
+
+        // stop timer if there are no packets left unacknowledged, restart it if there still are
+        stoptimer(0);
+        if (last_ack_received != last_seqnum_sent) {
+            printf("[A_input] restarting timer bc there are still unacknowledged packets\n");
+            starttimer(0, 20.0);
+        } else {
+            printf("[A_input] stopping timer bc no packets are left unacknowledged\n");
+        }
+    }
 }
 
 /* called when A's timer goes off */
 A_timerinterrupt()
 {
+    // when timer goes off, we want to re-send all unacknowledged packets
+    int i;
+    int j;
 
-}  
+    printf("[A_timerinterrupt] timer has gone off\n");
+    printf("[A_timerinterrupt] resetting timer\n");
+    starttimer(0, 20.0);
+
+    for (i = last_ack_received + 1; i <= last_seqnum_sent; i++) {
+        struct pkt *mypktptr;
+        int checksum;
+        mypktptr = (struct pkt *)malloc(sizeof(struct pkt));
+        mypktptr->seqnum = i;
+        for (j = 0; j < 20; j++) {
+            // sequence number serves as an offset for the buffer
+            mypktptr->payload[j] = buffer[(i + j) % buffer_size];
+        }
+        checksum = build_checksum(*mypktptr);
+        mypktptr->checksum = checksum;
+        printf("[A_timerinterrupt] resending message with seqnumber %d through layer3\n", i);
+        tolayer3(0, *mypktptr);
+    }
+}
 
 /* the following routine will be called once (only) before any other */
 /* entity A routines are called. You can use it to do any initialization */
 A_init()
 {
+    printf("[A_init] init\n");
+    last_seqnum_sent = -1;
+    last_ack_received = -1;
+    // what size do we want the window to be?
+    window_size = 20;
 }
 
 
@@ -78,6 +192,36 @@ A_init()
 B_input(packet)
   struct pkt packet;
 {
+    int i;
+    int checksum;
+    struct msg *message;
+    struct pkt *mypktptr;
+
+    printf("[B_input] received packet through layer3\n");
+
+    // if received message is not corrupted and it is next expected packet
+    if (!is_corrupted(packet) && packet.seqnum == last_seqnum_received + 1) {
+        // build message
+        message = (struct msg *)malloc(sizeof(struct msg));
+        for(i = 0; i < 20; i++)
+            message->data[i] = packet.payload[i];
+        printf("[B_input] sending message through layer5\n");
+        // send the message to layer5 and update last seqnumber received
+        tolayer5(1, *message);
+        last_seqnum_received = packet.seqnum;
+    } else if (is_corrupted(packet)) {
+        printf("[B_input] received packet is corrupted\n");
+    } else if (packet.seqnum != last_seqnum_received + 1) {
+        printf("[B-input] received packet is out-of-order\n");
+    }
+
+    // create and send ACK packet for last seqnum received (in order)
+    mypktptr = (struct pkt *)malloc(sizeof(struct pkt));
+    mypktptr->acknum = last_seqnum_received;
+    printf("[B_input] sending ACK for sequence num %d through layer3\n", last_seqnum_received);
+    checksum = build_checksum(*mypktptr);
+    mypktptr->checksum = checksum;
+    tolayer3(1, *mypktptr);
 }
 
 /* called when B's timer goes off */
@@ -89,6 +233,8 @@ B_timerinterrupt()
 /* entity B routines are called. You can use it to do any initialization */
 B_init()
 {
+    printf("[B_init] init\n");
+    last_seqnum_received = -1;
 }
 
 
