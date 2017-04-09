@@ -71,6 +71,32 @@ void rtinit1()
     senddistvect1();
 }
 
+int bellmanfordupdt1() {
+    // execute the bellman-ford updates for all routers
+    printf("ROUTER %d: Executing Bellman-Ford updates\n", x1);
+    int y, v;
+    int changed = 0;
+    for (y = 0; y < 4; y++) {
+        int min_v = connectcosts1[y];
+
+        for (v = 0; v < 4; v++) {
+            // skip non-neighbors
+            if (neighbors1[v] == 0)
+                continue;
+
+            if (connectcosts1[v] + dt1.costs[y][v] < min_v) {
+                min_v = connectcosts1[v] + dt1.costs[y][v];
+            }
+        }
+
+        if (min_v != dt1.costs[y][x1]) {
+            changed = 1;
+            dt1.costs[y][x1] = min_v;
+        }
+    }
+
+    return changed;
+}
 
 void rtupdate1(rcvdpkt)
   struct rtpkt *rcvdpkt;
@@ -81,34 +107,15 @@ void rtupdate1(rcvdpkt)
 
     // update distance vector of neighbor w in distance table
     printf("ROUTER %d: Updating neighbor %d distance vector\n", x1, w);
-    int changed = 0;
     for (y = 0; y < 4; y++) {
         dt1.costs[y][w] = rcvdpkt->mincost[y];
     }
 
     // execute the bellman-ford updates for all routers
-    printf("ROUTER %d: Executing Bellman-Ford updates\n", x1);
-    for (y = 0; y < 4; y++) {
-        int min_v = dt1.costs[y][x1];
-
-        for (v = 0; v < 4; v++) {
-            // skip non-neighbors
-            if (neighbors1[v] == 0)
-                continue;
-
-            if (dt1.costs[v][x1] + dt1.costs[y][v] < min_v) {
-                min_v = dt1.costs[v][x1] + dt1.costs[y][v];
-            }
-        }
-
-        if (min_v != dt1.costs[y][x1]) {
-            changed = 1;
-            dt1.costs[y][x1] = min_v;
-        }
-
-    }
+    int changed = bellmanfordupdt1();
 
     if (changed) {
+        printf("Router %d: My router vector has changed\n", x1);
         senddistvect1();
     }
 
@@ -119,7 +126,6 @@ void rtupdate1(rcvdpkt)
 
 printdt1(dtptr)
   struct distance_table *dtptr;
-  
 {
   printf("             via   \n");
   printf("   D1 |    0     2 \n");
@@ -132,14 +138,24 @@ printdt1(dtptr)
 
 
 
-void linkhandler1(linkid, newcost)   
-int linkid, newcost;   
 /* called when cost from 1 to linkid changes from current value to newcost*/
 /* You can leave this routine empty if you're an undergrad. If you want */
 /* to use this routine, you'll need to change the value of the LINKCHANGE */
 /* constant definition in prog3.c from 0 to 1 */
-	
+void linkhandler1(linkid, newcost)
+int linkid, newcost;
 {
+    int prevcost = connectcosts1[linkid];
+    printf("\nROUTER %d: cost has changed for link %d from %d to %d\n", x1, linkid, prevcost, newcost);
+
+    connectcosts1[linkid] = newcost;
+    int changed = bellmanfordupdt1();
+
+    if (changed) {
+        senddistvect1();
+    }
+
+    printdt1(&dt1);
 }
 
 

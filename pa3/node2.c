@@ -87,15 +87,15 @@ void rtupdate2(rcvdpkt)
     printf("ROUTER %d: Executing Bellman-Ford updates\n", x2);
     int changed = 0;
     for (y = 0; y < 4; y++) {
-        int min_v = dt2.costs[y][x2];
+        int min_v = connectcosts2[y];
 
         for (v = 0; v < 4; v++) {
             // skip non-neighbors
             if (neighbors2[v] == 0)
                 continue;
 
-            if (dt2.costs[v][x2] + dt2.costs[y][v] < min_v) {
-                min_v = dt2.costs[v][x2] + dt2.costs[y][v];
+            if (connectcosts2[v] + dt2.costs[y][v] < min_v) {
+                min_v = connectcosts2[v] + dt2.costs[y][v];
             }
         }
 

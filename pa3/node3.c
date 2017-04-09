@@ -86,15 +86,15 @@ void rtupdate3(rcvdpkt)
     printf("ROUTER %d: Executing Bellman-Ford updates\n", x3);
     int changed = 0;
     for (y = 0; y < 4; y++) {
-        int min_v = dt3.costs[y][x3];
+        int min_v = connectcosts3[y];
 
         for (v = 0; v < 4; v++) {
             // skip non-neighbors
             if (neighbors3[v] == 0)
                 continue;
 
-            if (dt3.costs[v][x3] + dt3.costs[y][v] < min_v) {
-                min_v = dt3.costs[v][x3] + dt3.costs[y][v];
+            if (connectcosts3[v] + dt3.costs[y][v] < min_v) {
+                min_v = connectcosts3[v] + dt3.costs[y][v];
             }
         }
 
@@ -105,6 +105,7 @@ void rtupdate3(rcvdpkt)
     }
 
     if (changed) {
+        printf("ROUTER %d: My distance vector has changed\n", x3);
         senddistvect3();
     }
 
