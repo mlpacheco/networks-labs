@@ -150,6 +150,7 @@ void linkhandler0(linkid, newcost)
     int changed = bellmanfordupdt0();
 
     if (changed) {
+        printf("ROUTER %d: My distance vector has changed\n", x0);
         senddistvect0();
     }
 

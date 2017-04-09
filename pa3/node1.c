@@ -115,7 +115,7 @@ void rtupdate1(rcvdpkt)
     int changed = bellmanfordupdt1();
 
     if (changed) {
-        printf("Router %d: My router vector has changed\n", x1);
+        printf("Router %d: My distance vector has changed\n", x1);
         senddistvect1();
     }
 
@@ -152,6 +152,7 @@ int linkid, newcost;
     int changed = bellmanfordupdt1();
 
     if (changed) {
+        printf("Router %d: My distance vector has changed\n", x1);
         senddistvect1();
     }
 
